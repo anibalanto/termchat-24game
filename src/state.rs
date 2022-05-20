@@ -3,6 +3,8 @@ use chrono::{DateTime, Local};
 use rgb::RGB8;
 
 use std::collections::HashMap;
+use crate::cardascii::common::HandCardData;
+use crate::cardascii::core_cards::Game24;
 
 #[derive(PartialEq)]
 pub enum SystemMessageType {
@@ -59,6 +61,7 @@ pub struct State {
     last_user_id: usize,
     pub stop_stream: bool,
     pub windows: HashMap<Endpoint, Window>,
+    pub(crate) game24: Option<Game24>
 }
 
 pub enum CursorMovement {
@@ -113,8 +116,8 @@ impl State {
         (position.0 as u16, position.1 as u16)
     }
 
-    pub fn user_name(&self, endpoint: Endpoint) -> Option<&String> {
-        self.lan_users.get(&endpoint)
+    pub fn user_name(&self, endpoint: &Endpoint) -> Option<&String> {
+        self.lan_users.get(endpoint)
     }
 
     pub fn all_user_endpoints(&self) -> impl Iterator<Item = &Endpoint> {

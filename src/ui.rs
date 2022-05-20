@@ -10,10 +10,12 @@ use tui::backend::CrosstermBackend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Paragraph, Wrap};
+use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap};
 use tui::{Frame};
 
 use std::io::Write;
+use crate::cardascii::common::{Card, CARDCOUNT, CardType, HandCardData};
+use crate::cardascii::terminal::VisualDeck;
 
 pub fn draw(
     frame: &mut Frame<CrosstermBackend<impl Write>>,
@@ -27,13 +29,14 @@ pub fn draw(
         .split(chunk);
 
     let upper_chunk = chunks[0];
-    if !state.windows.is_empty() {
+    if let Some(game) = &state.game24 {
         let upper_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(0), Constraint::Length(30)].as_ref())
+            .constraints([Constraint::Min(15), Constraint::Length(31)].as_ref())
             .split(upper_chunk);
         draw_messages_panel(frame, state, upper_chunks[0], theme);
-        draw_video_panel(frame, state, upper_chunks[1]);
+        //draw_video_panel(frame, state, upper_chunks[1]);
+        draw_card_panel(frame, upper_chunks[1], game.draw_cards_as_string());
     }
     else {
         draw_messages_panel(frame, state, chunks[0], theme);
@@ -74,18 +77,18 @@ fn draw_messages_panel(
                 ]),
                 MessageType::Text(content) => {
                     let mut ui_message = vec![
-                        Span::styled(date, Style::default().fg(theme.date_color)),
-                        Span::styled(&message.user, Style::default().fg(color)),
-                        Span::styled(": ", Style::default().fg(color)),
+                        Span::styled(date           ,Style::default().fg(theme.date_color)),
+                        Span::styled(&message.user  ,Style::default().fg(color)),
+                        Span::styled(": "           ,Style::default().fg(color)),
                     ];
                     ui_message.extend(parse_content(content, theme));
                     Spans::from(ui_message)
                 }
                 MessageType::System(content, msg_type) => {
                     let (user_color, content_color) = match msg_type {
-                        SystemMessageType::Info => theme.system_info_color,
-                        SystemMessageType::Warning => theme.system_warning_color,
-                        SystemMessageType::Error => theme.system_error_color,
+                        SystemMessageType::Info     => theme.system_info_color,
+                        SystemMessageType::Warning  => theme.system_warning_color,
+                        SystemMessageType::Error    => theme.system_error_color,
                     };
                     Spans::from(vec![
                         Span::styled(date, Style::default().fg(theme.date_color)),
@@ -194,11 +197,38 @@ fn draw_input_panel(
     frame.set_cursor(chunk.x + 1 + input_cursor.0, chunk.y + 1 + input_cursor.1)
 }
 
-fn draw_video_panel(frame: &mut Frame<CrosstermBackend<impl Write>>, state: &State, chunk: Rect) {
+/*fn draw_video_panel(frame: &mut Frame<CrosstermBackend<impl Write>>, state: &State, chunk: Rect) {
     let windows = state.windows.values().collect();
     let fb = FrameBuffer::new(windows).block(Block::default().borders(Borders::ALL));
     frame.render_widget(fb, chunk);
+}*/
+
+fn draw_card_panel(frame: &mut Frame<CrosstermBackend<impl Write>>, chunk: Rect, visual_cards: Vec<Vec<String>>) {
+    let mut deck =VisualDeck::new();
+    let rows = visual_cards.iter().map(|v_card| {
+
+        let height = v_card
+            .iter()
+            .map(|content| content.chars().filter(|c| *c == '\n').count())
+            .max()
+            .unwrap_or(1);
+
+        let cells = v_card
+            .iter()
+            .map( |string| Cell::from(string.as_str()) );
+
+        Row::new(cells).height(height as u16).bottom_margin(1)
+    });
+
+    let t = Table::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Cards"))
+        .widths(&[
+            Constraint::Length(14),
+            Constraint::Length(14)
+        ]);
+    frame.render_widget(t, chunk);
 }
+
 #[derive(Default)]
 struct FrameBuffer<'a> {
     windows: Vec<&'a Window>,

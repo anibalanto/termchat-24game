@@ -1,3 +1,4 @@
+use std::fs::copy;
 use super::state::{State, CursorMovement, ChatMessage, MessageType, ScrollMovement};
 use crate::{
     state::Window,
@@ -9,6 +10,7 @@ use crate::commands::{CommandManager};
 use crate::message::{NetMessage, Chunk};
 use crate::util::{Error, Result, Reportable};
 use crate::commands::send_file::{SendFileCommand};
+use crate::commands::cardascii_answer::{CardasciiAnswer, CardasciiAnswerCommand};
 #[cfg(feature = "stream-video")]
 use crate::commands::send_stream::{SendStreamCommand, StopStreamCommand};
 use crate::config::Config;
@@ -23,6 +25,8 @@ use message_io::node::{
 };
 
 use std::io::{ErrorKind};
+use crate::cardascii::common::{Card, CARDCOUNT, CardType, HandCardData};
+use crate::cardascii::core_cards::{Game24, UnusedCardsError};
 
 pub enum Signal {
     Terminal(TermEvent),
@@ -60,20 +64,33 @@ impl<'a> Application<'a> {
         #[cfg(feature = "stream-video")]
         let commands = commands.with(SendStreamCommand).with(StopStreamCommand);
 
-        Ok(Application {
-            config,
-            commands,
-            state: State::default(),
-            node: handler,
-            _task,
-            // Stored because we need its internal thread running until the Application was dropped
-            _terminal_events,
-            receiver,
-            encoder: Encoder::new(),
-        })
+        let commands = commands.with(CardasciiAnswerCommand);
+        let mut state = State::default();
+
+
+        state.game24 = match config.boot {
+            true => Some(Game24::new()),
+            false => None
+        };
+
+        Ok(
+            Application {
+                config,
+                commands,
+                state,
+                node: handler,
+                _task,
+                // Stored because we need its internal thread running until the Application was dropped
+                _terminal_events,
+                receiver,
+                encoder: Encoder::new(),
+            }
+        )
     }
 
     pub fn run(&mut self, out: impl std::io::Write) -> Result<()> {
+
+        self.try_new_turn_game24();
         let mut renderer = Renderer::new(out)?;
         renderer.render(&self.state, &self.config.theme)?;
 
@@ -146,17 +163,19 @@ impl<'a> Application<'a> {
                 self.righ_the_bell();
             }
             NetMessage::UserMessage(content) => {
-                if let Some(user) = self.state.user_name(endpoint) {
-                    let message = ChatMessage::new(user.into(), MessageType::Text(content));
+                if let Some(user) = self.state.user_name(&endpoint) {
+                    let message = ChatMessage::new(
+                        user.into(),
+                        MessageType::Text(content));
                     self.state.add_message(message);
                     self.righ_the_bell();
                 }
             }
             NetMessage::UserData(file_name, chunk) => {
                 use std::io::Write;
-                if self.state.user_name(endpoint).is_some() {
+                if self.state.user_name(&endpoint).is_some() {
                     // safe unwrap due to check
-                    let user = self.state.user_name(endpoint).unwrap().to_owned();
+                    let user = self.state.user_name(&endpoint).unwrap().to_owned();
 
                     match chunk {
                         Chunk::Error => {
@@ -207,6 +226,51 @@ impl<'a> Application<'a> {
                     self.state.windows.remove(&endpoint);
                 }
             },
+            NetMessage::CardasciiNewTurn(cards) => {
+
+            },
+            NetMessage::CardasciiAnswer(content) => {
+                if let Some(user) = self.state.user_name(&endpoint) {
+                    let message = ChatMessage::new(
+                        user.into(),
+                        MessageType::Text(format!("24Game_answer! > {content}")));
+                    self.state.add_message(message);
+                    self.righ_the_bell();
+                }
+
+                if self.state.game24.is_some(){//let Some(game) = &mut self.state.game24 {
+                    let message2 = ChatMessage::new(
+                        "Me".to_string(),
+                        MessageType::Text(format!("analizing > {content}")));
+
+                    self.state.add_message(message2);
+
+                    let game = self.state.game24.as_mut().unwrap();
+                    let result_message = match game.make_answer(0, content.clone()) {
+
+                        Ok(()) => format!(
+                            "correct answer!! =_= > {}",
+                            content.clone() ),
+
+                        Err(UnusedCardsError(msg)) => format!(
+                            "isn't correct answer!! =_= > {} > problem: {}",
+                            content.clone(), msg ),
+                    };
+
+                    for endpoint in self.state.all_user_endpoints() {
+                        self.node.network().send (
+                            *endpoint,
+                            self.encoder.encode (
+                                NetMessage::UserMessage (
+                                    result_message.clone()
+                                )
+                            )
+                        );
+                    }
+
+                }
+
+            }
         }
     }
 
@@ -291,6 +355,12 @@ impl<'a> Application<'a> {
         }
     }
 
+    fn try_new_turn_game24(&mut self){
+        if let Some(game) = &mut self.state.game24 {
+            game.give_cards();
+        }
+    }
+
     fn process_action(&mut self, mut action: Box<dyn Action>) {
         match action.process(&mut self.state, self.node.network()) {
             Processing::Completed => (),
@@ -308,5 +378,9 @@ impl<'a> Application<'a> {
         if self.config.terminal_bell {
             print!("\x07");
         }
+    }
+
+    fn analize_message(&self, message: String) {
+
     }
 }

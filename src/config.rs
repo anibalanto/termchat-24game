@@ -3,14 +3,16 @@ use clap::ArgMatches;
 use serde::{Serialize, Deserialize};
 use crate::util::Result;
 use tui::style::Color;
+use crate::state::{ChatMessage, MessageType};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub discovery_addr: SocketAddrV4,
     pub tcp_server_port: u16,
     pub user_name: String,
     pub terminal_bell: bool,
     pub theme: Theme,
+    pub boot: bool,
 }
 
 impl Default for Config {
@@ -21,6 +23,7 @@ impl Default for Config {
             user_name: whoami::username(),
             terminal_bell: true,
             theme: Theme::default(),
+            boot: false,
         }
     }
 }
@@ -60,7 +63,7 @@ impl Config {
     /// Read configuration file from disk
     /// If it fails for any reason use default Config value
     /// If the user uses the cli arguments they will override the default values
-    pub fn from_matches(matches: ArgMatches) -> Self {
+    pub fn from_matches(matches: & ArgMatches) -> Self {
         let mut config = Config::from_config_file().unwrap_or_default();
 
         // the next unwrap are safe because we use clap validator
@@ -73,7 +76,7 @@ impl Config {
         if let Some(user_name) = matches.value_of("username") {
             config.user_name = user_name.parse().unwrap();
         }
-        if matches.value_of("quiet-mode").is_some() {
+        if matches.is_present("quiet-mode") {
             config.terminal_bell = false;
         }
         if let Some(theme) = matches.value_of("theme") {
@@ -84,12 +87,15 @@ impl Config {
                 config.theme = Theme::light_theme();
             }
         }
+        if matches.is_present("boot") {
+            config.boot = true;
+        }
 
         config
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Theme {
     pub message_colors: Vec<Color>,
     pub my_user_color: Color,

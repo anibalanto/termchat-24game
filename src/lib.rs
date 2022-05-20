@@ -9,3 +9,4 @@ mod ui;
 mod util;
 mod encoder;
 pub mod config;
+mod cardascii;

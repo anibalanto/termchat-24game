@@ -40,6 +40,13 @@ fn main() {
                 .help("Name used as user idenfication"),
         )
         .arg(
+            Arg::with_name("boot")
+                .long("boot")
+                .takes_value(false)
+                .short("b")
+                .help("Make a boot to play cardacii game"),
+        )
+        .arg(
             Arg::with_name("quiet-mode")
                 .long("quiet-mode")
                 .short("q")
@@ -58,7 +65,9 @@ fn main() {
         .get_matches();
 
     // The next unwraps are safe because we specified a default value and a validator
-    let config = Config::from_matches(matches);
+    let config = Config::from_matches(& matches);
+
+
 
     let result = match Application::new(&config) {
         Ok(mut app) => app.run(std::io::stdout()),
