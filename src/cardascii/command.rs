@@ -1,10 +1,5 @@
-use std::cmp::{max, min};
-use std::io;
-use std::io::Write;
-use std::thread;
-use std::time;
 
-use super::common::{AnswerData, BYTECOUNT, HandCardData};
+use super::common::HandCardData;
 use super::terminal::VisualDeck;
 
 pub fn get_command(deck: & mut VisualDeck, hand: &HandCardData) -> Option<String> {

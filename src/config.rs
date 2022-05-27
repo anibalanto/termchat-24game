@@ -3,7 +3,6 @@ use clap::ArgMatches;
 use serde::{Serialize, Deserialize};
 use crate::util::Result;
 use tui::style::Color;
-use crate::state::{ChatMessage, MessageType};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {

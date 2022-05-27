@@ -10,12 +10,10 @@ use tui::backend::CrosstermBackend;
 use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap};
-use tui::{Frame};
+use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
+use tui::Frame;
 
 use std::io::Write;
-use crate::cardascii::common::{Card, CARDCOUNT, CardType, HandCardData};
-use crate::cardascii::terminal::VisualDeck;
 
 pub fn draw(
     frame: &mut Frame<CrosstermBackend<impl Write>>,
@@ -204,7 +202,7 @@ fn draw_input_panel(
 }*/
 
 fn draw_card_panel(frame: &mut Frame<CrosstermBackend<impl Write>>, chunk: Rect, visual_cards: Vec<Vec<String>>) {
-    let mut deck =VisualDeck::new();
+    
     let rows = visual_cards.iter().map(|v_card| {
 
         let height = v_card
@@ -236,14 +234,14 @@ struct FrameBuffer<'a> {
 }
 
 impl<'a> FrameBuffer<'a> {
-    fn new(windows: Vec<&'a Window>) -> Self {
+    /*fn new(windows: Vec<&'a Window>) -> Self {
         Self { windows, ..Default::default() }
     }
 
     fn block(mut self, block: Block<'a>) -> FrameBuffer<'a> {
         self.block = Some(block);
         self
-    }
+    }*/
 }
 
 impl tui::widgets::Widget for FrameBuffer<'_> {

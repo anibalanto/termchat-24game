@@ -3,7 +3,6 @@ use chrono::{DateTime, Local};
 use rgb::RGB8;
 
 use std::collections::HashMap;
-use crate::cardascii::common::HandCardData;
 use crate::cardascii::core_cards::Game24;
 
 #[derive(PartialEq)]

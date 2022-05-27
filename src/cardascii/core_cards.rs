@@ -1,38 +1,18 @@
-use std::error::Error;
-use std::io::{stdin, Stdin, stdout, Write};
+use std::io::{stdin, Stdin};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use rcalc::{Interpreter, Lexer, Token};
 use crate::cardascii::terminal::VisualDeck;
 use super::common::{Card, CardType};
 
-const CARD_ID_JOCKER_1: u8 = 0;
+/*const CARD_ID_JOCKER_1: u8 = 0;
 const CARD_ID_JOCKER_2: u8 = 1;
+*/
 
-
-/*macro_rules! make_str_card {
-    ( $x:expr $( , $more:expr )* ) => (
-        format!("{}{}{}{}{}{}{}{}{}", $x, $( $more ),* )
-    )
-}*/
 
 #[derive(Debug)]
 pub struct UnusedCardsError(pub String);
 
-macro_rules! make_str_card {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut vec = Vec::<&'static str>::new();
-            $(
-                #[allow(unused_assignments)]
-                {
-                    vec.push($x);
-                }
-            )*
-            vec
-        }
-    };
-}
 
 struct Deck{
     cards: Vec<Card>
@@ -56,9 +36,9 @@ impl Deck {
         self.cards.push( Card{ _type, value } );
     }
 
-    fn as_ids(& self) -> Vec<u8> {
+    /*fn as_ids(& self) -> Vec<u8> {
         (0 .. self.cards.len() as u8).collect()
-    }
+    }*/
 
     fn as_ids_no_jokers(& self) -> Vec<u8> {
         (0 .. self.cards.len() as u8).collect()

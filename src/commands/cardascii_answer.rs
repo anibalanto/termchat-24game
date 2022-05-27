@@ -1,10 +1,9 @@
 use message_io::network::NetworkController;
 use crate::action::{Action, Processing};
-use crate::cardascii::core_cards::Game24;
 use crate::commands::Command;
 use crate::encoder::Encoder;
 use crate::message::NetMessage;
-use crate::state::{ChatMessage, MessageType, State};
+use crate::state::State;
 use crate::util::Result;
 
 pub struct CardasciiAnswerCommand;

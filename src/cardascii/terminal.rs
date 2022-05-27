@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::common::{HandCardData, Card, CardType};
+use super::common::{Card, CardType};
 
 pub struct VisualDeck{
     //back:   Vec<&'static str>,

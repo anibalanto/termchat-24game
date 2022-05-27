@@ -1,4 +1,3 @@
-use std::fs::copy;
 use super::state::{State, CursorMovement, ChatMessage, MessageType, ScrollMovement};
 use crate::{
     state::Window,
@@ -10,7 +9,7 @@ use crate::commands::{CommandManager};
 use crate::message::{NetMessage, Chunk};
 use crate::util::{Error, Result, Reportable};
 use crate::commands::send_file::{SendFileCommand};
-use crate::commands::cardascii_answer::{CardasciiAnswer, CardasciiAnswerCommand};
+use crate::commands::cardascii_answer::{CardasciiAnswerCommand};
 #[cfg(feature = "stream-video")]
 use crate::commands::send_stream::{SendStreamCommand, StopStreamCommand};
 use crate::config::Config;
@@ -25,7 +24,6 @@ use message_io::node::{
 };
 
 use std::io::{ErrorKind};
-use crate::cardascii::common::{Card, CARDCOUNT, CardType, HandCardData};
 use crate::cardascii::core_cards::{Game24, UnusedCardsError};
 
 pub enum Signal {
@@ -52,15 +50,29 @@ impl<'a> Application<'a> {
     pub fn new(config: &'a Config) -> Result<Application<'a>> {
         let (handler, listener) = node::split();
 
-        let terminal_handler = handler.clone(); // Collect terminal events
-        let _terminal_events = TerminalEventCollector::new(move |term_event| match term_event {
-            Ok(event) => terminal_handler.signals().send(Signal::Terminal(event)),
-            Err(e) => terminal_handler.signals().send(Signal::Close(Some(e))),
+        let terminal_handler = 
+            handler.clone(); // Collect terminal events
+
+        let _terminal_events = 
+            TerminalEventCollector::new(
+                move |term_event| 
+                    match term_event {
+                        Ok(event) => 
+                            terminal_handler
+                                .signals()
+                                .send(Signal::Terminal(event)),
+
+                        Err(e) => 
+                            terminal_handler
+                                .signals()
+                                .send(Signal::Close(Some(e))),
         })?;
 
-        let (_task, receiver) = listener.enqueue();
+        let (_task, receiver) = 
+            listener.enqueue();
 
-        let commands = CommandManager::default().with(SendFileCommand);
+        let commands = 
+            CommandManager::default().with(SendFileCommand);
         #[cfg(feature = "stream-video")]
         let commands = commands.with(SendStreamCommand).with(StopStreamCommand);
 
@@ -226,7 +238,7 @@ impl<'a> Application<'a> {
                     self.state.windows.remove(&endpoint);
                 }
             },
-            NetMessage::CardasciiNewTurn(cards) => {
+            NetMessage::CardasciiNewTurn(_) => {
 
             },
             NetMessage::CardasciiAnswer(content) => {
@@ -380,7 +392,4 @@ impl<'a> Application<'a> {
         }
     }
 
-    fn analize_message(&self, message: String) {
-
-    }
 }
