@@ -4,6 +4,8 @@ use termchat::config::Config;
 use clap::{App, Arg};
 
 use std::net::{SocketAddrV4};
+use std::sync::Arc;
+use message_io::network::{Endpoint, ResourceType, Transport};
 
 fn main() {
     let matches = App::new(clap::crate_name!())
@@ -22,15 +24,26 @@ fn main() {
                 .help("Multicast address to found others 'termchat' applications"),
         )
         .arg(
-            Arg::with_name("tcp_server_port")
-                .long("tcp-server-port")
+            Arg::with_name("player")
+                .long("player")
+                .short("p")
+                .takes_value(true)
+                .validator(|addr| match addr.parse::<SocketAddrV4>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Isn't a socket addr".into()),
+                })
+                .help("Tcp server addr used when communicating with table game"),
+        )
+        .arg(
+            Arg::with_name("table")
+                .long("table")
                 .short("t")
                 .takes_value(true)
                 .validator(|port| match port.parse::<u16>() {
                     Ok(_) => Ok(()),
                     Err(_) => Err("The value must be in range 0..65535".into()),
                 })
-                .help("Tcp server port used when communicating with other termchat instances"),
+                .help("Tcp port used when communicating with other player instances"),
         )
         .arg(
             Arg::with_name("username")
@@ -68,14 +81,12 @@ fn main() {
     let config = Config::from_matches(& matches);
 
 
-
     let result = match Application::new(&config) {
-        Ok(mut app) => app.run(std::io::stdout()),
-        Err(e) => Err(e),
+        Ok(mut app) => app.run(
+            std::io::stdout()/*,
+            Arc::new(app)*/
+        ),
+        Err(e) => (),
     };
 
-    if let Err(e) = result {
-        // app is now dropped we can print to stderr safely
-        eprintln!("termchat exited with error: {}", e);
-    }
 }

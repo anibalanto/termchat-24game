@@ -3,11 +3,20 @@ use clap::ArgMatches;
 use serde::{Serialize, Deserialize};
 use crate::util::Result;
 use tui::style::Color;
+#[derive(Serialize, Deserialize, Debug)]
+pub enum NodeType {
+    Client{
+        server_addr:SocketAddrV4
+    },
+    Server{
+        port: u16,
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub discovery_addr: SocketAddrV4,
-    pub tcp_server_port: u16,
+    pub node_type: NodeType, //if empty is a server
     pub user_name: String,
     pub terminal_bell: bool,
     pub theme: Theme,
@@ -16,9 +25,10 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        //Server by default
         Config {
             discovery_addr: "238.255.0.1:5877".parse().unwrap(),
-            tcp_server_port: "0".parse().unwrap(),
+            node_type: NodeType::Server{port: "2424".parse().unwrap()},
             user_name: whoami::username(),
             terminal_bell: true,
             theme: Theme::default(),
@@ -69,8 +79,11 @@ impl Config {
         if let Some(discovery_addr) = matches.value_of("discovery") {
             config.discovery_addr = discovery_addr.parse().unwrap();
         }
-        if let Some(tcp_server_port) = matches.value_of("tcp_server_port") {
-            config.tcp_server_port = tcp_server_port.parse().unwrap();
+        if let Some(port) = matches.value_of("table") {
+            config.node_type = NodeType::Server{port: port.parse().unwrap() };
+        }
+        if let Some(server_addr) = matches.value_of("player") {
+            config.node_type = NodeType::Client{server_addr: server_addr.parse::<SocketAddrV4>().unwrap()};
         }
         if let Some(user_name) = matches.value_of("username") {
             config.user_name = user_name.parse().unwrap();

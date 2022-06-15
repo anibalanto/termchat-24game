@@ -12,18 +12,23 @@ use crate::commands::send_file::{SendFileCommand};
 use crate::commands::cardascii_answer::{CardasciiAnswerCommand};
 #[cfg(feature = "stream-video")]
 use crate::commands::send_stream::{SendStreamCommand, StopStreamCommand};
-use crate::config::Config;
+use crate::config::{Config, NodeType};
 use crate::encoder::{self, Encoder};
 
 use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
 
 use message_io::events::{EventReceiver};
-use message_io::network::{Endpoint, Transport};
+use message_io::network::{Endpoint, RemoteAddr, ResourceId, ResourceType, Transport};
 use message_io::node::{
     self, StoredNodeEvent as NodeEvent, StoredNetEvent as NetEvent, NodeTask, NodeHandler,
 };
 
+
 use std::io::{ErrorKind};
+use std::net::SocketAddrV4;
+use std::{thread, time};
+use std::sync::Arc;
+use chrono::Duration;
 use crate::cardascii::core_cards::{Game24, UnusedCardsError};
 
 pub enum Signal {
@@ -68,7 +73,7 @@ impl<'a> Application<'a> {
                                 .send(Signal::Close(Some(e))),
         })?;
 
-        let (_task, receiver) = 
+        let (_task, receiver) =
             listener.enqueue();
 
         let commands = 
@@ -100,28 +105,50 @@ impl<'a> Application<'a> {
         )
     }
 
-    pub fn run(&mut self, out: impl std::io::Write) -> Result<()> {
+    pub fn run(&mut self, out: impl std::io::Write/*, self_arc: Arc<& mut Application>*/) {
 
         self.try_new_turn_game24();
-        let mut renderer = Renderer::new(out)?;
-        renderer.render(&self.state, &self.config.theme)?;
+        let mut renderer = Renderer::new(out).unwrap();
+        renderer.render(&self.state, &self.config.theme);
 
-        let server_addr = ("0.0.0.0", self.config.tcp_server_port);
-        let (_, server_addr) = self.node.network().listen(Transport::FramedTcp, server_addr)?;
-        self.node.network().listen(Transport::Udp, self.config.discovery_addr)?;
+        match & self.config.node_type {
+            NodeType::Client{server_addr} => {
+                let (server_endpoint, local_addr) =
+                    self.node.network().connect(Transport::FramedTcp, server_addr.clone()).unwrap();
 
-        let (discovery_endpoint, _) =
-            self.node.network().connect_sync(Transport::Udp, self.config.discovery_addr)?;
-        let message = NetMessage::HelloLan(self.config.user_name.clone(), server_addr.port());
-        self.node.network().send(discovery_endpoint, self.encoder.encode(message));
+                let message = NetMessage::HelloLan(
+                    self.config.user_name.clone(),
+                    server_addr.port());
 
-        loop {
-            match self.receiver.receive() {
+                self.node.network().send(
+                    server_endpoint,
+                    self.encoder.encode(
+                        message
+                    ));
+            },
+            NodeType::Server{port} => {
+                let my_addr = format!("0.0.0.0:{}", port).parse::<SocketAddrV4>().unwrap();
+                let (_, my_addr) = self.node.network().listen(Transport::FramedTcp, my_addr).unwrap();
+            }
+        }
+
+        /*thread::spawn(move || {
+            let self_clone = Arc::clone(&self_arc);
+            loop{
+
+                thread::sleep(time::Duration::from_millis(300));
+            }
+        });*/
+        let (_, listener) = node::split::<()>();
+        //listener.for_each(move |event| match event.network() {
+
+        listener.for_each(move |event| {
+            match event {
                 NodeEvent::Network(net_event) => match net_event {
-                    NetEvent::Connected(_, _) => { /* handler in the connect call*/ }
+                    NetEvent::Connected(_, _) => (),/* handler in the connect call*/
                     NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
                         Some(net_message) => self.process_network_message(endpoint, net_message),
-                        None => return Err("Unknown message received".into()),
+                        None => println!("Unknown message received"),
                     },
                     NetEvent::Accepted(_endpoint, _resource_id) => (),
                     NetEvent::Disconnected(endpoint) => {
@@ -140,15 +167,12 @@ impl<'a> Application<'a> {
                     }
                     Signal::Close(error) => {
                         self.node.stop();
-                        return match error {
-                            Some(error) => Err(error),
-                            None => Ok(()),
-                        }
                     }
                 },
-            }
-            renderer.render(&self.state, &self.config.theme)?;
-        }
+            };
+            renderer.render(&self.state, &self.config.theme);
+        });
+
         //Renderer is destroyed here and the terminal is recovered
     }
 
