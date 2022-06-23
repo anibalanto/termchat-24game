@@ -2,16 +2,16 @@ use rgb::RGB8;
 use serde::{Deserialize, Serialize};
 use crate::cardascii::common::HandCardData;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Chunk {
     Data(Vec<u8>),
     Error,
     End,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum NetMessage {
-    HelloLan(String, u16),                     // user_name, server_port
+    HelloServer(String, u16),                  // user_name, server_port
     HelloUser(String),                         // user_name
     UserMessage(String),                       // content
     UserData(String, Chunk),                   // file_name, chunk

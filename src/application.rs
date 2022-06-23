@@ -18,7 +18,7 @@ use crate::encoder::{self, Encoder};
 use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
 
 use message_io::events::{EventReceiver};
-use message_io::network::{Endpoint, RemoteAddr, ResourceId, ResourceType, Transport};
+use message_io::network::{Endpoint, Transport};
 use message_io::node::{
     self, StoredNodeEvent as NodeEvent, StoredNetEvent as NetEvent, NodeTask, NodeHandler,
 };
@@ -26,9 +26,6 @@ use message_io::node::{
 
 use std::io::{ErrorKind};
 use std::net::SocketAddrV4;
-use std::{thread, time};
-use std::sync::Arc;
-use chrono::Duration;
 use crate::cardascii::core_cards::{Game24, UnusedCardsError};
 
 pub enum Signal {
@@ -53,7 +50,9 @@ pub struct Application<'a> {
 
 impl<'a> Application<'a> {
     pub fn new(config: &'a Config) -> Result<Application<'a>> {
-        let (handler, listener) = node::split();
+        let (
+            handler, 
+            listener) = node::split();
 
         let terminal_handler = 
             handler.clone(); // Collect terminal events
@@ -73,15 +72,22 @@ impl<'a> Application<'a> {
                                 .send(Signal::Close(Some(e))),
         })?;
 
-        let (_task, receiver) =
+        let (
+            _task, 
+            receiver) = 
             listener.enqueue();
 
         let commands = 
-            CommandManager::default().with(SendFileCommand);
-        #[cfg(feature = "stream-video")]
-        let commands = commands.with(SendStreamCommand).with(StopStreamCommand);
+            CommandManager::default()
+            .with(SendFileCommand);
 
-        let commands = commands.with(CardasciiAnswerCommand);
+        #[cfg(feature = "stream-video")]
+        let commands = commands
+            .with(SendStreamCommand)
+            .with(StopStreamCommand);
+
+        let commands = commands
+            .with(CardasciiAnswerCommand);
         let mut state = State::default();
 
 
@@ -105,18 +111,18 @@ impl<'a> Application<'a> {
         )
     }
 
-    pub fn run(&mut self, out: impl std::io::Write/*, self_arc: Arc<& mut Application>*/) {
+    pub fn run(&mut self, out: impl std::io::Write/*, self_arc: Arc<& mut Application>*/)  -> Result<()> {
 
         self.try_new_turn_game24();
-        let mut renderer = Renderer::new(out).unwrap();
-        renderer.render(&self.state, &self.config.theme);
+        let mut renderer = Renderer::new(out)?;
+        renderer.render(&self.state, &self.config.theme)?;
 
         match & self.config.node_type {
             NodeType::Client{server_addr} => {
-                let (server_endpoint, local_addr) =
-                    self.node.network().connect(Transport::FramedTcp, server_addr.clone()).unwrap();
+                let (server_endpoint, server_addr) =
+                    self.node.network().connect(Transport::Ws, server_addr.clone()).unwrap();
 
-                let message = NetMessage::HelloLan(
+                let message = NetMessage::HelloServer(
                     self.config.user_name.clone(),
                     server_addr.port());
 
@@ -125,10 +131,12 @@ impl<'a> Application<'a> {
                     self.encoder.encode(
                         message
                     ));
+                    
             },
             NodeType::Server{port} => {
                 let my_addr = format!("0.0.0.0:{}", port).parse::<SocketAddrV4>().unwrap();
-                let (_, my_addr) = self.node.network().listen(Transport::FramedTcp, my_addr).unwrap();
+                let (_, _) = self.node.network()
+                    .listen(Transport::Ws, my_addr)?;
             }
         }
 
@@ -139,18 +147,22 @@ impl<'a> Application<'a> {
                 thread::sleep(time::Duration::from_millis(300));
             }
         });*/
-        let (_, listener) = node::split::<()>();
+        //let (_, listener) = node::split::<()>();
         //listener.for_each(move |event| match event.network() {
 
-        listener.for_each(move |event| {
-            match event {
+        loop {
+            match self.receiver.receive() {
                 NodeEvent::Network(net_event) => match net_event {
-                    NetEvent::Connected(_, _) => (),/* handler in the connect call*/
+                    NetEvent::Connected(endpoint, _) => {
+                        self.log_in_chat(format!("connected! <{endpoint:?}"))
+                    }
                     NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
                         Some(net_message) => self.process_network_message(endpoint, net_message),
-                        None => println!("Unknown message received"),
+                        None => return Err("Unknown message received".into()),
                     },
-                    NetEvent::Accepted(_endpoint, _resource_id) => (),
+                    NetEvent::Accepted(endpoint, _resource_id) => {
+                        self.log_in_chat(format!("accepted! <{endpoint:?}"))
+                    },
                     NetEvent::Disconnected(endpoint) => {
                         self.state.disconnected_user(endpoint);
                         //If the endpoint was sending a stream make sure to close its window
@@ -167,24 +179,35 @@ impl<'a> Application<'a> {
                     }
                     Signal::Close(error) => {
                         self.node.stop();
+                        return match error {
+                            Some(error) => Err(error),
+                            None => Ok(()),
+                        }
                     }
                 },
-            };
-            renderer.render(&self.state, &self.config.theme);
-        });
-
+            }
+            renderer.render(&self.state, &self.config.theme)?;
+        }
         //Renderer is destroyed here and the terminal is recovered
+    }
+
+    fn log_in_chat(&mut self, msg: String){
+        let message = ChatMessage::new(
+            "(me)".to_owned(),
+            MessageType::Text(msg));
+        self.state.add_message(message);
     }
 
     fn process_network_message(&mut self, endpoint: Endpoint, message: NetMessage) {
         match message {
             // by udp (multicast):
-            NetMessage::HelloLan(user, server_port) => {
+            NetMessage::HelloServer(user, server_port) => {
                 let server_addr = (endpoint.addr().ip(), server_port);
                 if user != self.config.user_name {
                     let mut try_connect = || -> Result<()> {
                         let (user_endpoint, _) =
-                            self.node.network().connect_sync(Transport::FramedTcp, server_addr)?;
+                            self.node.network()
+                                .connect_sync(Transport::Ws, server_addr)?;
                         let message = NetMessage::HelloUser(self.config.user_name.clone());
                         self.node.network().send(user_endpoint, self.encoder.encode(message));
                         self.state.connected_user(user_endpoint, &user);

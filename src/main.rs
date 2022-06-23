@@ -4,8 +4,6 @@ use termchat::config::Config;
 use clap::{App, Arg};
 
 use std::net::{SocketAddrV4};
-use std::sync::Arc;
-use message_io::network::{Endpoint, ResourceType, Transport};
 
 fn main() {
     let matches = App::new(clap::crate_name!())
@@ -82,11 +80,13 @@ fn main() {
 
 
     let result = match Application::new(&config) {
-        Ok(mut app) => app.run(
-            std::io::stdout()/*,
-            Arc::new(app)*/
-        ),
-        Err(e) => (),
+        Ok(mut app) => app.run(std::io::stdout()),
+        Err(e) => Err(e),
     };
+
+    if let Err(e) = result {
+        // app is now dropped we can print to stderr safely
+        eprintln!("termchat exited with error: {}", e);
+    }
 
 }

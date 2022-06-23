@@ -133,7 +133,10 @@ impl State {
             self.users_id.insert(user.into(), self.last_user_id);
         }
         self.last_user_id += 1;
-        self.add_message(ChatMessage::new(user.into(), MessageType::Connection));
+        self.add_message(
+            ChatMessage::new(
+                user.into(),
+                MessageType::Connection));
     }
 
     pub fn disconnected_user(&mut self, endpoint: Endpoint) {
