@@ -17,14 +17,17 @@ use crate::encoder::{self, Encoder};
 
 use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
 
-use message_io::events::{EventReceiver};
-use message_io::network::{Endpoint, Transport};
+use message_io::{events::{EventReceiver}, node::NodeEvent};
+use message_io::network::{NetEvent, Endpoint, Transport};
 use message_io::node::{
-    self, StoredNodeEvent as NodeEvent, StoredNetEvent as NetEvent, NodeTask, NodeHandler,
+    self, NodeListener, NodeTask, NodeHandler,
 };
 
+use std::{thread::{self, JoinHandle}, io::Stdout, collections::HashMap};
+use std::sync::{mpsc, MutexGuard};
 
-use std::io::{ErrorKind};
+
+use std::{io::{ErrorKind}, sync::{Mutex, Arc}};
 use std::net::SocketAddrV4;
 use crate::cardascii::core_cards::{Game24, UnusedCardsError};
 
@@ -36,109 +39,120 @@ pub enum Signal {
     Close(Option<Error>),
 }
 
-pub struct Application<'a> {
-    config: &'a Config,
+pub struct Application {
+    config: Config,
     commands: CommandManager,
     state: State,
-    node: NodeHandler<Signal>,
-    _task: NodeTask,
+    //node: NodeHandler<Signal>,
+    //_task: NodeTask,
+    //renderer: Renderer<Stdout>,
     //read_file_ev: ReadFile,
-    _terminal_events: TerminalEventCollector,
-    receiver: EventReceiver<NodeEvent<Signal>>,
-    encoder: Encoder,
+    //_terminal_events: TerminalEventCollector,
+    //receiver: EventReceiver<NodeEvent<Signal>>,
 }
 
-impl<'a> Application<'a> {
-    pub fn new(config: &'a Config) -> Result<Application<'a>> {
-        let (
-            handler, 
-            listener) = node::split();
+impl<'a> Application {
+    pub fn new(config: Config) -> Application {
 
-        let terminal_handler = 
-            handler.clone(); // Collect terminal events
+        //let mut renderer = Renderer::new(std::io::stdout()).unwrap();
 
-        let _terminal_events = 
-            TerminalEventCollector::new(
-                move |term_event| 
-                    match term_event {
-                        Ok(event) => 
-                            terminal_handler
-                                .signals()
-                                .send(Signal::Terminal(event)),
 
-                        Err(e) => 
-                            terminal_handler
-                                .signals()
-                                .send(Signal::Close(Some(e))),
-        })?;
+        //let terminal_handler = handler.clone(); // Collect terminal events
 
-        let (
-            _task, 
-            receiver) = 
-            listener.enqueue();
+        /*let _terminal_events = 
+        TerminalEventCollector::new(
+            move |term_event|
+                match term_event {
+                    Ok(event) =>
+                        terminal_handler.signals().send(Signal::Terminal(event)),
+                    Err(e) =>
+                        terminal_handler.signals().send(Signal::Close(Some(e))),
+        }).unwrap();*/
 
-        let commands = 
-            CommandManager::default()
-            .with(SendFileCommand);
+
+        //let (_task, receiver) = listener.enqueue();
+
+        let commands = CommandManager::default().with(SendFileCommand);
 
         #[cfg(feature = "stream-video")]
-        let commands = commands
-            .with(SendStreamCommand)
-            .with(StopStreamCommand);
+        let commands = commands.with(SendStreamCommand).with(StopStreamCommand);
 
-        let commands = commands
-            .with(CardasciiAnswerCommand);
+        let commands = commands.with(CardasciiAnswerCommand);
         let mut state = State::default();
-
 
         state.game24 = match config.boot {
             true => Some(Game24::new()),
-            false => None
+            false => None,
         };
 
-        Ok(
-            Application {
-                config,
-                commands,
-                state,
-                node: handler,
-                _task,
-                // Stored because we need its internal thread running until the Application was dropped
-                _terminal_events,
-                receiver,
-                encoder: Encoder::new(),
+        Application {
+            config,
+            commands,
+            state,
+            //node: handler,
+            //_task,
+            //renderer,
+            // Stored because we need its internal thread running until the Application was dropped
+            //_terminal_events,
+            //receiver,
+        }
+
+
+        /*let _terminal_events = 
+        TerminalEventCollector::new(
+            move |term_event|{
+                match term_event {
+                    Ok(event) =>
+                    thread::spawn(move || {
+                        read_input(app_arc, event)
+                    }),
+                    Err(e) =>
+                        (),//terminal_handler.signals().send(Signal::Close(Some(e))),
+                    };
             }
-        )
+                
+                ).unwrap();*/
+
+
+
+        
     }
 
-    pub fn run(&mut self, out: impl std::io::Write/*, self_arc: Arc<& mut Application>*/)  -> Result<()> {
+
+    pub fn run(
+        &mut self,
+        out: impl std::io::Write, /*, self_arc: Arc<& mut Application>*/
+    ) -> Result<()> {
 
         self.try_new_turn_game24();
+
+
+
+
+
         let mut renderer = Renderer::new(out)?;
+
         renderer.render(&self.state, &self.config.theme)?;
 
-        match & self.config.node_type {
-            NodeType::Client{server_addr} => {
+        /*match &self.config.node_type {
+            NodeType::Client { server_addr } => {
                 let (server_endpoint, server_addr) =
                     self.node.network().connect(Transport::Ws, server_addr.clone()).unwrap();
 
-                let message = NetMessage::HelloServer(
-                    self.config.user_name.clone(),
-                    server_addr.port());
+                let message =
+                    NetMessage::HelloServer(self.config.user_name.clone(), server_addr.port());
 
-                self.node.network().send(
-                    server_endpoint,
-                    self.encoder.encode(
-                        message
-                    ));
-                    
-            },
-            NodeType::Server{port} => {
-                let my_addr = format!("0.0.0.0:{}", port).parse::<SocketAddrV4>().unwrap();
-                let (_, _) = self.node.network()
-                    .listen(Transport::Ws, my_addr)?;
+                self.node.network().send(server_endpoint, self.encoder.encode(message));
             }
-        }
+            NodeType::Server { port } => {
+                let my_addr = format!("0.0.0.0:{}", port).parse::<SocketAddrV4>().unwrap();
+                let (_, _) = self.node.network().listen(Transport::Ws, my_addr)?;
+            }
+        }*/
+
+        
+
+        Ok(())
 
         /*thread::spawn(move || {
             let self_clone = Arc::clone(&self_arc);
@@ -150,7 +164,7 @@ impl<'a> Application<'a> {
         //let (_, listener) = node::split::<()>();
         //listener.for_each(move |event| match event.network() {
 
-        loop {
+        /*loop {
             match self.receiver.receive() {
                 NodeEvent::Network(net_event) => match net_event {
                     NetEvent::Connected(endpoint, _) => {
@@ -162,7 +176,7 @@ impl<'a> Application<'a> {
                     },
                     NetEvent::Accepted(endpoint, _resource_id) => {
                         self.log_in_chat(format!("accepted! <{endpoint:?}"))
-                    },
+                    }
                     NetEvent::Disconnected(endpoint) => {
                         self.state.disconnected_user(endpoint);
                         //If the endpoint was sending a stream make sure to close its window
@@ -182,38 +196,76 @@ impl<'a> Application<'a> {
                         return match error {
                             Some(error) => Err(error),
                             None => Ok(()),
-                        }
+                        };
                     }
                 },
             }
             renderer.render(&self.state, &self.config.theme)?;
-        }
+        }*/
         //Renderer is destroyed here and the terminal is recovered
     }
 
-    fn log_in_chat(&mut self, msg: String){
-        let message = ChatMessage::new(
-            "(me)".to_owned(),
-            MessageType::Text(msg));
+    /*fn process_net_event(&mut self, net_event: NodeEvent<Signal>) -> Result<()>{
+        match net_event {
+            NodeEvent::Network(net_event) => match net_event {
+                NetEvent::Connected(endpoint, _) => {
+                    Ok(self.log_in_chat(format!("connected! <{endpoint:?}")))
+                }
+                NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
+                    Some(net_message) => {
+                        self.process_network_message(endpoint, net_message);
+                        Ok(())
+                    },
+                    None => return Err("Unknown message received".into()),
+                },
+                NetEvent::Accepted(endpoint, _resource_id) => {
+                    Ok(self.log_in_chat(format!("accepted! <{endpoint:?}")))
+                }
+                NetEvent::Disconnected(endpoint) => {
+                    self.state.disconnected_user(endpoint);
+                    //If the endpoint was sending a stream make sure to close its window
+                    self.state.windows.remove(&endpoint);
+                    self.righ_the_bell();
+                    Ok(())
+                }
+            },
+            NodeEvent::Signal(signal) => match signal {
+                Signal::Terminal(term_event) => {
+                    self.process_terminal_event(term_event);
+                    Ok(())
+                },
+                Signal::Action(action) => {
+                    self.process_action(action);
+                    Ok(())
+                }
+                Signal::Close(error) => {
+                    self.node.stop();
+                    return match error {
+                        Some(error) => Err(error),
+                        None => Ok(()),
+                    };
+                }
+            },
+        }
+    }*/
+
+    fn log_in_chat(&mut self, msg: String) {
+        let message = ChatMessage::new("(me)".to_owned(), MessageType::Text(msg));
         self.state.add_message(message);
     }
 
-    fn process_network_message(&mut self, endpoint: Endpoint, message: NetMessage) {
+    fn process_network_message(&mut self, endpoint: Endpoint, message: NetMessage, node: & NodeHandler<Signal>, encoder: & mut Encoder) {
+        //self.log_in_chat(format!("processing {:?}", message));
         match message {
-            // by udp (multicast):
             NetMessage::HelloServer(user, server_port) => {
-                let server_addr = (endpoint.addr().ip(), server_port);
+               // let server_addr = (endpoint.addr().ip(), server_port);
                 if user != self.config.user_name {
-                    let mut try_connect = || -> Result<()> {
-                        let (user_endpoint, _) =
-                            self.node.network()
-                                .connect_sync(Transport::Ws, server_addr)?;
-                        let message = NetMessage::HelloUser(self.config.user_name.clone());
-                        self.node.network().send(user_endpoint, self.encoder.encode(message));
-                        self.state.connected_user(user_endpoint, &user);
-                        Ok(())
-                    };
-                    try_connect().report_if_err(&mut self.state);
+                    let message =
+                    NetMessage::HelloUser(self.config.user_name.clone());
+
+                    node.network().send(endpoint, encoder.encode(message));
+                    self.state.connected_user(endpoint, &user);
+
                 }
             }
             // by tcp:
@@ -223,9 +275,7 @@ impl<'a> Application<'a> {
             }
             NetMessage::UserMessage(content) => {
                 if let Some(user) = self.state.user_name(&endpoint) {
-                    let message = ChatMessage::new(
-                        user.into(),
-                        MessageType::Text(content));
+                    let message = ChatMessage::new(user.into(), MessageType::Text(content));
                     self.state.add_message(message);
                     self.righ_the_bell();
                 }
@@ -285,67 +335,60 @@ impl<'a> Application<'a> {
                     self.state.windows.remove(&endpoint);
                 }
             },
-            NetMessage::CardasciiNewTurn(_) => {
-
-            },
+            NetMessage::CardasciiNewTurn(_) => {}
             NetMessage::CardasciiAnswer(content) => {
                 if let Some(user) = self.state.user_name(&endpoint) {
                     let message = ChatMessage::new(
                         user.into(),
-                        MessageType::Text(format!("24Game_answer! > {content}")));
+                        MessageType::Text(format!("24Game_answer! > {content}")),
+                    );
                     self.state.add_message(message);
                     self.righ_the_bell();
                 }
 
-                if self.state.game24.is_some(){//let Some(game) = &mut self.state.game24 {
+                if self.state.game24.is_some() {
+                    //let Some(game) = &mut self.state.game24 {
                     let message2 = ChatMessage::new(
                         "Me".to_string(),
-                        MessageType::Text(format!("analizing > {content}")));
+                        MessageType::Text(format!("analizing > {content}")),
+                    );
 
                     self.state.add_message(message2);
 
                     let game = self.state.game24.as_mut().unwrap();
                     let result_message = match game.make_answer(0, content.clone()) {
-
-                        Ok(()) => format!(
-                            "correct answer!! =_= > {}",
-                            content.clone() ),
+                        Ok(()) => format!("correct answer!! =_= > {}", content.clone()),
 
                         Err(UnusedCardsError(msg)) => format!(
                             "isn't correct answer!! =_= > {} > problem: {}",
-                            content.clone(), msg ),
+                            content.clone(),
+                            msg
+                        ),
                     };
 
                     for endpoint in self.state.all_user_endpoints() {
-                        self.node.network().send (
+                        node.network().send(
                             *endpoint,
-                            self.encoder.encode (
-                                NetMessage::UserMessage (
-                                    result_message.clone()
-                                )
-                            )
+                            encoder.encode(NetMessage::UserMessage(result_message.clone())),
                         );
                     }
-
                 }
-
             }
         }
     }
 
-    fn process_terminal_event(&mut self, term_event: TermEvent) {
+    fn process_terminal_event(&mut self, term_event: TermEvent, node: & NodeHandler<Signal>, encoder: & mut Encoder) {
         match term_event {
             TermEvent::Mouse(_) => (),
             TermEvent::Resize(_, _) => (),
             TermEvent::Key(KeyEvent { code, modifiers }) => match code {
                 KeyCode::Esc => {
-                    self.node.signals().send_with_priority(Signal::Close(None));
+                    node.signals().send_with_priority(Signal::Close(None));
                 }
                 KeyCode::Char(character) => {
                     if character == 'c' && modifiers.contains(KeyModifiers::CONTROL) {
-                        self.node.signals().send_with_priority(Signal::Close(None));
-                    }
-                    else {
+                        node.signals().send_with_priority(Signal::Close(None));
+                    } else {
                         self.state.input_write(character);
                     }
                 }
@@ -360,14 +403,14 @@ impl<'a> Application<'a> {
                                 self.state.add_message(message);
 
                                 for endpoint in self.state.all_user_endpoints() {
-                                    self.node.network().send(
+                                    node.network().send(
                                         *endpoint,
-                                        self.encoder.encode(NetMessage::UserMessage(input.clone())),
+                                        encoder.encode(NetMessage::UserMessage(input.clone())),
                                     );
                                 }
 
                                 match action {
-                                    Some(action) => self.process_action(action),
+                                    Some(action) => self.process_action(action, node),
                                     None => {
                                         if input.starts_with('?') {
                                             String::from("This command doesn't exists")
@@ -414,23 +457,23 @@ impl<'a> Application<'a> {
         }
     }
 
-    fn try_new_turn_game24(&mut self){
+    fn try_new_turn_game24(&mut self) {
         if let Some(game) = &mut self.state.game24 {
             game.give_cards();
         }
     }
 
-    fn process_action(&mut self, mut action: Box<dyn Action>) {
-        match action.process(&mut self.state, self.node.network()) {
+    fn process_action(&mut self, mut action: Box<dyn Action>, node: & NodeHandler<Signal>) {
+        match action.process(&mut self.state, node.network()) {
             Processing::Completed => (),
             Processing::Partial(delay) => {
-                self.node.signals().send_with_timer(Signal::Action(action), delay);
+                node.signals().send_with_timer(Signal::Action(action), delay);
             }
         }
     }
 
-    pub fn node_handler(&self) -> NodeHandler<Signal> {
-        self.node.clone()
+    pub fn node_handler(&self, node: NodeHandler<Signal>) -> NodeHandler<Signal> {
+        node.clone()
     }
 
     pub fn righ_the_bell(&self) {
@@ -439,4 +482,287 @@ impl<'a> Application<'a> {
         }
     }
 
+
+    fn test_server(& mut self, event: NodeEvent<Signal>) {
+        match event.network() {
+            NetEvent::Connected(_, _) => (), // Only generated at connect() calls.
+            NetEvent::Accepted(endpoint, _listener_id) => {
+                // Only connection oriented protocols will generate this event
+                self.log_in_chat(format!("Client ({}) connected", endpoint.addr()));
+            }
+            NetEvent::Message(endpoint, input_data) => {
+                self.log_in_chat(format!("Message({})", endpoint.addr()));
+            }
+            NetEvent::Disconnected(endpoint) => {
+                // Only connection oriented protocols will generate this event
+                self.log_in_chat(format!("Client ({}) disconnected", endpoint.addr()));
+            }
+        }
+    }
+
+    fn test_client(& mut self, event: NodeEvent<Signal>) {
+        match event.network() {
+            NetEvent::Connected(_, established) => {
+                if established {
+                    self.log_in_chat(format!("Connected to server at "));
+                    self.log_in_chat(format!("Client identified by local port"));
+                }
+                else {
+                    self.log_in_chat(format!("Can not connect to server at"));
+                }
+            }
+            NetEvent::Accepted(_, _) => unreachable!(), // Only generated when a listener accepts
+            NetEvent::Message(_, input_data) => {
+                self.log_in_chat(format!("Message()"));
+            }
+            NetEvent::Disconnected(_) => {
+                self.log_in_chat(format!("Server is disconnected"));
+            }
+        }
+    }
+
+
+
 }
+
+use std::time::Duration;
+
+use crossterm::{event::{read, poll}};
+
+pub fn read_input<'a>(
+    _1_app_arc : Arc<Mutex<Application>>,
+    _2_encoder_arc : Arc<Mutex<Encoder>>,
+    _3_node_arc : Arc<Mutex<NodeHandler<Signal>>>,
+    _4_renderer_arc :  Arc<Mutex<Renderer<Stdout>>>) 
+    -> Result<bool> {    
+        loop {
+            if poll(Duration::from_millis(100))? {
+                // It's guaranteed that `read` wont block, because `poll` returned
+                // `Ok(true)`.
+                //let arc = Arc::clone(&arc);
+                //let guard = & mut arc.lock().unwrap();
+
+                let app_guard = & mut _1_app_arc.lock().unwrap();
+                let encoder_guard = & mut _2_encoder_arc.lock().unwrap();
+                let node_guard = & _3_node_arc.lock().unwrap();
+                let renderer_guard = & mut _4_renderer_arc.lock().unwrap();
+
+                app_guard.process_terminal_event(read()?, node_guard, encoder_guard);
+                renderer_guard.render(&app_guard.state, &app_guard.config.theme);
+            } else {
+                // Timeout expired, no `Event` is available
+            }
+        }
+}
+
+pub fn read_ws<'a>(
+    _1_app_arc : Arc<Mutex<Application>>,
+    _2_encoder_arc : Arc<Mutex<Encoder>>,
+    _3_node_arc : Arc<Mutex<NodeHandler<Signal>>>,
+    _4_renderer_arc :  Arc<Mutex<Renderer<Stdout>>>,
+    listener: NodeListener<Signal>) {
+
+        
+        listener.for_each(move |event| {
+
+            let app_guard = & mut _1_app_arc.lock().unwrap();
+            let encoder_guard = & mut _2_encoder_arc.lock().unwrap();
+            let node_guard = & _3_node_arc.lock().unwrap();
+            let renderer_guard = & mut _4_renderer_arc.lock().unwrap();
+
+
+            match event.network() {
+                NetEvent::Connected(endpoint, _) => {
+                    //app_guard.log_in_chat(format!("connected! <{endpoint:?}"));
+                        
+                    let message =
+                    NetMessage::HelloServer(app_guard.config.user_name.clone(), endpoint.addr().port());
+
+                    node_guard.network().send(endpoint, encoder_guard.encode(message));
+                    
+                }
+                NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
+                    Some(net_message) => {
+                        app_guard.process_network_message(endpoint, net_message, node_guard, encoder_guard);
+                    },
+                    None => /*return Err("Unknown message received".into())*/(),
+                },
+                NetEvent::Accepted(endpoint, _resource_id) => {
+                    //app_guard.log_in_chat(format!("accepted! <{endpoint:?}"));
+                },
+                NetEvent::Disconnected(endpoint) => {
+                    app_guard.state.disconnected_user(endpoint);
+                    //If the endpoint was sending a stream make sure to close its window
+                    app_guard.state.windows.remove(&endpoint);
+                    app_guard.righ_the_bell();
+                }
+            }
+            renderer_guard.render(&app_guard.state, &app_guard.config.theme);
+        } );
+    }
+
+pub fn run_app(config: Config){
+
+
+
+
+    let (node, listener) = node::split();
+
+    
+    let _1_app_arc = Arc::new(Mutex::new(Application::new(config)));
+    let _2_encoder_arc = Arc::new(Mutex::new(Encoder::new()));
+    let _3_node_arc = Arc::new(Mutex::new(node));
+    let _4_render_arc =  Arc::new(Mutex::new(Renderer::new(std::io::stdout()).unwrap()));
+
+    /*let (sender, receiver) = 
+        mpsc::channel::<Arc<Mutex<Application>>>();
+        let sender = sender.clone();*/
+       
+        
+    let app_arc = Arc::clone(& _1_app_arc);
+    let encoder_arc = Arc::clone( & _2_encoder_arc);
+    let node_arc = Arc::clone( & _3_node_arc);
+    {
+
+        let app_guard = & mut app_arc.lock().unwrap();
+        let encoder_guard = & mut encoder_arc.lock().unwrap();
+        let node_guard = & node_arc.lock().unwrap();
+
+        app_guard.try_new_turn_game24();
+
+        match &app_guard.config.node_type {
+            NodeType::Client { server_addr } => {
+                let (server_endpoint, server_addr) =
+                node_guard.network().connect(Transport::Ws, server_addr.clone()).unwrap();
+    
+            }
+            NodeType::Server { port } => {
+                let my_addr = format!("0.0.0.0:{}", port).parse::<SocketAddrV4>().unwrap();
+                let (_, _) = node_guard.network().listen(Transport::Ws, my_addr).unwrap();
+            }
+        }    
+    }
+    let app_arc = Arc::clone(& _1_app_arc);
+    let renderer_arc = Arc::clone(&_4_render_arc);
+    {
+        let app_guard = & app_arc.lock().unwrap();
+        let renderer_guard = & mut renderer_arc.lock().unwrap();
+        renderer_guard.render(&app_guard.state, &app_guard.config.theme);
+    
+        
+    }
+
+    let app_arc = Arc::clone(& _1_app_arc);
+    let encoder_arc = Arc::clone( & _2_encoder_arc);
+    let node_arc = Arc::clone( & _3_node_arc);
+    let renderer_arc = Arc::clone(&_4_render_arc);
+
+    let t1 = thread::spawn(move|| {
+
+        read_ws(
+            app_arc,
+            encoder_arc,
+            node_arc, 
+            renderer_arc,
+            listener);
+
+        
+    });
+
+
+
+    let app_arc = Arc::clone(& _1_app_arc);
+    let encoder_arc = Arc::clone( & _2_encoder_arc);
+    let node_arc = Arc::clone( & _3_node_arc);
+    let renderer_arc = Arc::clone(&_4_render_arc);
+
+    let t2 = thread::spawn(move|| {
+        
+        read_input(
+            app_arc,
+            encoder_arc,
+            node_arc,
+            renderer_arc,
+            );
+    });
+
+    /*loop {
+        // receive each value and wait between each one
+        let reciver_arc  = receiver.recv().unwrap();
+        let arc = Arc::clone(&reciver_arc);
+        let guard = & mut arc.lock().unwrap();
+        renderer.render(&guard.state, &guard.config.theme);
+    }*/
+    t1.join().unwrap();
+    t2.join().unwrap();
+
+}
+/*
+struct AppOperation {
+    _1_app_arc : Arc<Mutex<Application>>,
+    _2_encoder_arc : Arc<Mutex<Encoder>>,
+    _3_node_arc : Arc<Mutex<NodeHandler<Signal>>>,
+    _4_renderer_arc :  Arc<Mutex<Renderer<Stdout>>>,
+    operable: bool,
+
+}
+
+impl AppOperation {
+    fn new() -> AppOperation {
+        let (node, listener) = node::split();
+
+        let _1_app_arc = Arc::new(Mutex::new(Application::new(config)));
+        let _2_encoder_arc = Arc::new(Mutex::new(Encoder::new()));
+        let _3_node_arc = Arc::new(Mutex::new(node));
+        let _4_renderer_arc =  Arc::new(Mutex::new(Renderer::new(std::io::stdout()).unwrap()));
+        
+        AppOperation { 
+            _1_app_arc, 
+            _2_encoder_arc, 
+            _3_node_arc,
+            _4_renderer_arc,
+            operable: false,
+        }
+    }
+
+
+}
+
+/* */
+
+impl AppOperation {
+    fn cloneArcs(&self) -> Self{
+        let _1_app_arc = Arc::clone(& self._1_app_arc);
+        let _2_encoder_arc = Arc::clone( & self._2_encoder_arc);
+        let _3_node_arc = Arc::clone( & self._3_node_arc);
+        let _4_renderer_arc = Arc::clone(& self._4_renderer_arc);
+        AppOperation {
+            _1_app_arc,
+            _2_encoder_arc,
+            _3_node_arc,
+            _4_renderer_arc,
+            operable: true
+        }
+    }
+
+    fn operate(
+        &mut self,
+        f: &dyn Fn(
+            & mut Application, 
+            & NodeHandler<Signal>, 
+            & mut Encoder, 
+            & mut Renderer<Stdout>) -> Result<()>
+        ) {
+            let app_guard = & mut self._1_app_arc.lock().unwrap();
+            let encoder_guard = & mut self._2_encoder_arc.lock().unwrap();
+            let node_guard = & self._3_node_arc.lock().unwrap();
+            let renderer_guard = & mut self._4_renderer_arc.lock().unwrap();
+            f(app_guard, encoder_guard, node_guard)
+        }
+}
+*/
+/*fn read_input<'a>(arc: Arc<Mutex<& mut Application<'a>>>, term_event: TermEvent) {
+    let arc = Arc::clone(&arc);
+    let guard = & mut arc.lock().unwrap();
+    guard.process_terminetwork_eventnal_event(term_event);
+}*/
