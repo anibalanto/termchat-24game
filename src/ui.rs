@@ -27,17 +27,19 @@ pub fn draw(
         .split(chunk);
 
     let upper_chunk = chunks[0];
-    if let Some(game) = &state.game24 {
+    draw_messages_panel(frame, state, chunks[0], theme);
+    
         let upper_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Min(15), Constraint::Length(31)].as_ref())
             .split(upper_chunk);
         draw_messages_panel(frame, state, upper_chunks[0], theme);
         //draw_video_panel(frame, state, upper_chunks[1]);
+    if let Some(game) = &state.game24 {
         draw_card_panel(frame, upper_chunks[1], game.draw_cards_as_string());
     }
     else {
-        draw_messages_panel(frame, state, chunks[0], theme);
+        draw_card_panel(frame, upper_chunks[1], vec![vec!["".to_owned()]]);
     }
     draw_input_panel(frame, state, chunks[1], theme);
 }

@@ -1,8 +1,5 @@
 use super::state::{State, CursorMovement, ChatMessage, MessageType, ScrollMovement};
-use crate::{
-    state::Window,
-    terminal_events::{TerminalEventCollector},
-};
+use crate::state::Window;
 use crate::renderer::{Renderer};
 use crate::action::{Action, Processing};
 use crate::commands::{CommandManager};
@@ -17,17 +14,24 @@ use crate::encoder::{self, Encoder};
 
 use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
 
-use message_io::{events::{EventReceiver}, node::NodeEvent};
-use message_io::network::{NetEvent, Endpoint, Transport};
-use message_io::node::{
-    self, NodeListener, NodeTask, NodeHandler,
+use message_io::{
+    events::{EventReceiver},
+    node::NodeEvent,
 };
+use message_io::network::{NetEvent, Endpoint, Transport};
+use message_io::node::{self, NodeListener, NodeTask, NodeHandler};
 
-use std::{thread::{self, JoinHandle}, io::Stdout, collections::HashMap};
+use std::{
+    thread::{self, JoinHandle},
+    io::Stdout,
+    collections::HashMap,
+};
 use std::sync::{mpsc, MutexGuard};
 
-
-use std::{io::{ErrorKind}, sync::{Mutex, Arc}};
+use std::{
+    io::{ErrorKind},
+    sync::{Mutex, Arc},
+};
 use std::net::SocketAddrV4;
 use crate::cardascii::core_cards::{Game24, UnusedCardsError};
 
@@ -53,13 +57,11 @@ pub struct Application {
 
 impl<'a> Application {
     pub fn new(config: Config) -> Application {
-
         //let mut renderer = Renderer::new(std::io::stdout()).unwrap();
-
 
         //let terminal_handler = handler.clone(); // Collect terminal events
 
-        /*let _terminal_events = 
+        /*let _terminal_events =
         TerminalEventCollector::new(
             move |term_event|
                 match term_event {
@@ -68,7 +70,6 @@ impl<'a> Application {
                     Err(e) =>
                         terminal_handler.signals().send(Signal::Close(Some(e))),
         }).unwrap();*/
-
 
         //let (_task, receiver) = listener.enqueue();
 
@@ -97,8 +98,7 @@ impl<'a> Application {
             //receiver,
         }
 
-
-        /*let _terminal_events = 
+        /*let _terminal_events =
         TerminalEventCollector::new(
             move |term_event|{
                 match term_event {
@@ -110,25 +110,15 @@ impl<'a> Application {
                         (),//terminal_handler.signals().send(Signal::Close(Some(e))),
                     };
             }
-                
+
                 ).unwrap();*/
-
-
-
-        
     }
-
 
     pub fn run(
         &mut self,
         out: impl std::io::Write, /*, self_arc: Arc<& mut Application>*/
     ) -> Result<()> {
-
         self.try_new_turn_game24();
-
-
-
-
 
         let mut renderer = Renderer::new(out)?;
 
@@ -149,8 +139,6 @@ impl<'a> Application {
                 let (_, _) = self.node.network().listen(Transport::Ws, my_addr)?;
             }
         }*/
-
-        
 
         Ok(())
 
@@ -254,18 +242,22 @@ impl<'a> Application {
         self.state.add_message(message);
     }
 
-    fn process_network_message(&mut self, endpoint: Endpoint, message: NetMessage, node: & NodeHandler<Signal>, encoder: & mut Encoder) {
+    fn process_network_message(
+        &mut self,
+        endpoint: Endpoint,
+        message: NetMessage,
+        node: &NodeHandler<Signal>,
+        encoder: &mut Encoder,
+    ) {
         //self.log_in_chat(format!("processing {:?}", message));
         match message {
             NetMessage::HelloServer(user, server_port) => {
-               // let server_addr = (endpoint.addr().ip(), server_port);
+                // let server_addr = (endpoint.addr().ip(), server_port);
                 if user != self.config.user_name {
-                    let message =
-                    NetMessage::HelloUser(self.config.user_name.clone());
+                    let message = NetMessage::HelloUser(self.config.user_name.clone());
 
                     node.network().send(endpoint, encoder.encode(message));
                     self.state.connected_user(endpoint, &user);
-
                 }
             }
             // by tcp:
@@ -377,10 +369,17 @@ impl<'a> Application {
         }
     }
 
-    fn process_terminal_event(&mut self, term_event: TermEvent, node: & NodeHandler<Signal>, encoder: & mut Encoder) {
+    fn process_terminal_event(
+        &mut self,
+        term_event: TermEvent,
+        node: &NodeHandler<Signal>,
+        encoder: &mut Encoder,
+        renderer: &mut Renderer<Stdout>
+    ) {
         match term_event {
             TermEvent::Mouse(_) => (),
-            TermEvent::Resize(_, _) => (),
+            TermEvent::Resize(_, _) => {
+                renderer.render(&self.state, &self.config.theme);},
             TermEvent::Key(KeyEvent { code, modifiers }) => match code {
                 KeyCode::Esc => {
                     node.signals().send_with_priority(Signal::Close(None));
@@ -463,7 +462,7 @@ impl<'a> Application {
         }
     }
 
-    fn process_action(&mut self, mut action: Box<dyn Action>, node: & NodeHandler<Signal>) {
+    fn process_action(&mut self, mut action: Box<dyn Action>, node: &NodeHandler<Signal>) {
         match action.process(&mut self.state, node.network()) {
             Processing::Completed => (),
             Processing::Partial(delay) => {
@@ -482,8 +481,7 @@ impl<'a> Application {
         }
     }
 
-
-    fn test_server(& mut self, event: NodeEvent<Signal>) {
+    fn test_server(&mut self, event: NodeEvent<Signal>) {
         match event.network() {
             NetEvent::Connected(_, _) => (), // Only generated at connect() calls.
             NetEvent::Accepted(endpoint, _listener_id) => {
@@ -500,14 +498,13 @@ impl<'a> Application {
         }
     }
 
-    fn test_client(& mut self, event: NodeEvent<Signal>) {
+    fn test_client(&mut self, event: NodeEvent<Signal>) {
         match event.network() {
             NetEvent::Connected(_, established) => {
                 if established {
                     self.log_in_chat(format!("Connected to server at "));
                     self.log_in_chat(format!("Client identified by local port"));
-                }
-                else {
+                } else {
                     self.log_in_chat(format!("Can not connect to server at"));
                 }
             }
@@ -520,170 +517,150 @@ impl<'a> Application {
             }
         }
     }
-
-
-
 }
 
 use std::time::Duration;
 
-use crossterm::{event::{read, poll}};
+use crossterm::{
+    event::{read, poll},
+};
 
 pub fn read_input<'a>(
-    _1_app_arc : Arc<Mutex<Application>>,
-    _2_encoder_arc : Arc<Mutex<Encoder>>,
-    _3_node_arc : Arc<Mutex<NodeHandler<Signal>>>,
-    _4_renderer_arc :  Arc<Mutex<Renderer<Stdout>>>) 
-    -> Result<bool> {    
-        loop {
-            if poll(Duration::from_millis(100))? {
-                // It's guaranteed that `read` wont block, because `poll` returned
-                // `Ok(true)`.
-                //let arc = Arc::clone(&arc);
-                //let guard = & mut arc.lock().unwrap();
+    _1_app_arc: Arc<Mutex<Application>>,
+    _2_encoder_arc: Arc<Mutex<Encoder>>,
+    _3_node_arc: Arc<Mutex<NodeHandler<Signal>>>,
+    _4_renderer_arc: Arc<Mutex<Renderer<Stdout>>>,
+) -> Result<bool> {
+    loop {
+        if poll(Duration::from_millis(100))? {
+            // It's guaranteed that `read` wont block, because `poll` returned
+            // `Ok(true)`.
+            //let arc = Arc::clone(&arc);
+            //let guard = & mut arc.lock().unwrap();
 
-                let app_guard = & mut _1_app_arc.lock().unwrap();
-                let encoder_guard = & mut _2_encoder_arc.lock().unwrap();
-                let node_guard = & _3_node_arc.lock().unwrap();
-                let renderer_guard = & mut _4_renderer_arc.lock().unwrap();
+            let app_guard = &mut _1_app_arc.lock().unwrap();
+            let encoder_guard = &mut _2_encoder_arc.lock().unwrap();
+            let node_guard = &_3_node_arc.lock().unwrap();
+            let renderer_guard = &mut _4_renderer_arc.lock().unwrap();
 
-                app_guard.process_terminal_event(read()?, node_guard, encoder_guard);
-                renderer_guard.render(&app_guard.state, &app_guard.config.theme);
-            } else {
-                // Timeout expired, no `Event` is available
-            }
+            app_guard.process_terminal_event(read()?, node_guard, encoder_guard, renderer_guard);
+            renderer_guard.render(&app_guard.state, &app_guard.config.theme);
+        } else {
+            // Timeout expired, no `Event` is available
         }
+    }
 }
 
 pub fn read_ws<'a>(
-    _1_app_arc : Arc<Mutex<Application>>,
-    _2_encoder_arc : Arc<Mutex<Encoder>>,
-    _3_node_arc : Arc<Mutex<NodeHandler<Signal>>>,
-    _4_renderer_arc :  Arc<Mutex<Renderer<Stdout>>>,
-    listener: NodeListener<Signal>) {
+    _1_app_arc: Arc<Mutex<Application>>,
+    _2_encoder_arc: Arc<Mutex<Encoder>>,
+    _3_node_arc: Arc<Mutex<NodeHandler<Signal>>>,
+    _4_renderer_arc: Arc<Mutex<Renderer<Stdout>>>,
+    listener: NodeListener<Signal>,
+) {
+    listener.for_each(move |event| {
+        let app_guard = &mut _1_app_arc.lock().unwrap();
+        let encoder_guard = &mut _2_encoder_arc.lock().unwrap();
+        let node_guard = &_3_node_arc.lock().unwrap();
+        let renderer_guard = &mut _4_renderer_arc.lock().unwrap();
 
-        
-        listener.for_each(move |event| {
+        match event.network() {
+            NetEvent::Connected(endpoint, _) => {
+                //app_guard.log_in_chat(format!("connected! <{endpoint:?}"));
 
-            let app_guard = & mut _1_app_arc.lock().unwrap();
-            let encoder_guard = & mut _2_encoder_arc.lock().unwrap();
-            let node_guard = & _3_node_arc.lock().unwrap();
-            let renderer_guard = & mut _4_renderer_arc.lock().unwrap();
+                let message = NetMessage::HelloServer(
+                    app_guard.config.user_name.clone(),
+                    endpoint.addr().port(),
+                );
 
-
-            match event.network() {
-                NetEvent::Connected(endpoint, _) => {
-                    //app_guard.log_in_chat(format!("connected! <{endpoint:?}"));
-                        
-                    let message =
-                    NetMessage::HelloServer(app_guard.config.user_name.clone(), endpoint.addr().port());
-
-                    node_guard.network().send(endpoint, encoder_guard.encode(message));
-                    
-                }
-                NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
-                    Some(net_message) => {
-                        app_guard.process_network_message(endpoint, net_message, node_guard, encoder_guard);
-                    },
-                    None => /*return Err("Unknown message received".into())*/(),
-                },
-                NetEvent::Accepted(endpoint, _resource_id) => {
-                    //app_guard.log_in_chat(format!("accepted! <{endpoint:?}"));
-                },
-                NetEvent::Disconnected(endpoint) => {
-                    app_guard.state.disconnected_user(endpoint);
-                    //If the endpoint was sending a stream make sure to close its window
-                    app_guard.state.windows.remove(&endpoint);
-                    app_guard.righ_the_bell();
-                }
+                node_guard.network().send(endpoint, encoder_guard.encode(message));
             }
-            renderer_guard.render(&app_guard.state, &app_guard.config.theme);
-        } );
-    }
+            NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
+                Some(net_message) => {
+                    app_guard.process_network_message(
+                        endpoint,
+                        net_message,
+                        node_guard,
+                        encoder_guard,
+                    );
+                }
+                None =>
+                /*return Err("Unknown message received".into())*/
+                {
+                    ()
+                }
+            },
+            NetEvent::Accepted(endpoint, _resource_id) => {
+                //app_guard.log_in_chat(format!("accepted! <{endpoint:?}"));
+            }
+            NetEvent::Disconnected(endpoint) => {
+                app_guard.state.disconnected_user(endpoint);
+                //If the endpoint was sending a stream make sure to close its window
+                app_guard.state.windows.remove(&endpoint);
+                app_guard.righ_the_bell();
+            }
+        }
+        renderer_guard.render(&app_guard.state, &app_guard.config.theme);
+    });
+}
 
-pub fn run_app(config: Config){
-
-
-
-
+pub fn run_app(config: Config) {
     let (node, listener) = node::split();
 
-    
     let _1_app_arc = Arc::new(Mutex::new(Application::new(config)));
     let _2_encoder_arc = Arc::new(Mutex::new(Encoder::new()));
     let _3_node_arc = Arc::new(Mutex::new(node));
-    let _4_render_arc =  Arc::new(Mutex::new(Renderer::new(std::io::stdout()).unwrap()));
+    let _4_render_arc = Arc::new(Mutex::new(Renderer::new(std::io::stdout()).unwrap()));
 
-    /*let (sender, receiver) = 
-        mpsc::channel::<Arc<Mutex<Application>>>();
-        let sender = sender.clone();*/
-       
-        
-    let app_arc = Arc::clone(& _1_app_arc);
-    let encoder_arc = Arc::clone( & _2_encoder_arc);
-    let node_arc = Arc::clone( & _3_node_arc);
+    /*let (sender, receiver) =
+    mpsc::channel::<Arc<Mutex<Application>>>();
+    let sender = sender.clone();*/
+
+    let app_arc = Arc::clone(&_1_app_arc);
+    let encoder_arc = Arc::clone(&_2_encoder_arc);
+    let node_arc = Arc::clone(&_3_node_arc);
     {
-
-        let app_guard = & mut app_arc.lock().unwrap();
-        let encoder_guard = & mut encoder_arc.lock().unwrap();
-        let node_guard = & node_arc.lock().unwrap();
+        let app_guard = &mut app_arc.lock().unwrap();
+        let encoder_guard = &mut encoder_arc.lock().unwrap();
+        let node_guard = &node_arc.lock().unwrap();
 
         app_guard.try_new_turn_game24();
 
         match &app_guard.config.node_type {
             NodeType::Client { server_addr } => {
-                let (server_endpoint, server_addr) =
+                /*let (server_endpoint, server_addr) =*/
                 node_guard.network().connect(Transport::Ws, server_addr.clone()).unwrap();
-    
             }
             NodeType::Server { port } => {
                 let my_addr = format!("0.0.0.0:{}", port).parse::<SocketAddrV4>().unwrap();
                 let (_, _) = node_guard.network().listen(Transport::Ws, my_addr).unwrap();
             }
-        }    
+        }
     }
-    let app_arc = Arc::clone(& _1_app_arc);
+    let app_arc = Arc::clone(&_1_app_arc);
     let renderer_arc = Arc::clone(&_4_render_arc);
     {
-        let app_guard = & app_arc.lock().unwrap();
-        let renderer_guard = & mut renderer_arc.lock().unwrap();
+        let app_guard = &app_arc.lock().unwrap();
+        let renderer_guard = &mut renderer_arc.lock().unwrap();
         renderer_guard.render(&app_guard.state, &app_guard.config.theme);
-    
-        
     }
 
-    let app_arc = Arc::clone(& _1_app_arc);
-    let encoder_arc = Arc::clone( & _2_encoder_arc);
-    let node_arc = Arc::clone( & _3_node_arc);
+    let app_arc = Arc::clone(&_1_app_arc);
+    let encoder_arc = Arc::clone(&_2_encoder_arc);
+    let node_arc = Arc::clone(&_3_node_arc);
     let renderer_arc = Arc::clone(&_4_render_arc);
 
-    let t1 = thread::spawn(move|| {
-
-        read_ws(
-            app_arc,
-            encoder_arc,
-            node_arc, 
-            renderer_arc,
-            listener);
-
-        
+    let t1 = thread::spawn(move || {
+        read_ws(app_arc, encoder_arc, node_arc, renderer_arc, listener);
     });
 
-
-
-    let app_arc = Arc::clone(& _1_app_arc);
-    let encoder_arc = Arc::clone( & _2_encoder_arc);
-    let node_arc = Arc::clone( & _3_node_arc);
+    let app_arc = Arc::clone(&_1_app_arc);
+    let encoder_arc = Arc::clone(&_2_encoder_arc);
+    let node_arc = Arc::clone(&_3_node_arc);
     let renderer_arc = Arc::clone(&_4_render_arc);
 
-    let t2 = thread::spawn(move|| {
-        
-        read_input(
-            app_arc,
-            encoder_arc,
-            node_arc,
-            renderer_arc,
-            );
+    let t2 = thread::spawn(move || {
+        read_input(app_arc, encoder_arc, node_arc, renderer_arc);
     });
 
     /*loop {
@@ -695,7 +672,6 @@ pub fn run_app(config: Config){
     }*/
     t1.join().unwrap();
     t2.join().unwrap();
-
 }
 /*
 struct AppOperation {
@@ -715,10 +691,10 @@ impl AppOperation {
         let _2_encoder_arc = Arc::new(Mutex::new(Encoder::new()));
         let _3_node_arc = Arc::new(Mutex::new(node));
         let _4_renderer_arc =  Arc::new(Mutex::new(Renderer::new(std::io::stdout()).unwrap()));
-        
-        AppOperation { 
-            _1_app_arc, 
-            _2_encoder_arc, 
+
+        AppOperation {
+            _1_app_arc,
+            _2_encoder_arc,
             _3_node_arc,
             _4_renderer_arc,
             operable: false,
@@ -748,9 +724,9 @@ impl AppOperation {
     fn operate(
         &mut self,
         f: &dyn Fn(
-            & mut Application, 
-            & NodeHandler<Signal>, 
-            & mut Encoder, 
+            & mut Application,
+            & NodeHandler<Signal>,
+            & mut Encoder,
             & mut Renderer<Stdout>) -> Result<()>
         ) {
             let app_guard = & mut self._1_app_arc.lock().unwrap();
