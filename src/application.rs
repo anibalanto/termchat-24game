@@ -47,32 +47,10 @@ pub struct Application {
     config: Config,
     commands: CommandManager,
     state: State,
-    //node: NodeHandler<Signal>,
-    //_task: NodeTask,
-    //renderer: Renderer<Stdout>,
-    //read_file_ev: ReadFile,
-    //_terminal_events: TerminalEventCollector,
-    //receiver: EventReceiver<NodeEvent<Signal>>,
 }
 
 impl<'a> Application {
     pub fn new(config: Config) -> Application {
-        //let mut renderer = Renderer::new(std::io::stdout()).unwrap();
-
-        //let terminal_handler = handler.clone(); // Collect terminal events
-
-        /*let _terminal_events =
-        TerminalEventCollector::new(
-            move |term_event|
-                match term_event {
-                    Ok(event) =>
-                        terminal_handler.signals().send(Signal::Terminal(event)),
-                    Err(e) =>
-                        terminal_handler.signals().send(Signal::Close(Some(e))),
-        }).unwrap();*/
-
-        //let (_task, receiver) = listener.enqueue();
-
         let commands = CommandManager::default().with(SendFileCommand);
 
         #[cfg(feature = "stream-video")]
@@ -86,32 +64,12 @@ impl<'a> Application {
             false => None,
         };
 
-        Application {
-            config,
-            commands,
-            state,
-            //node: handler,
-            //_task,
-            //renderer,
-            // Stored because we need its internal thread running until the Application was dropped
-            //_terminal_events,
-            //receiver,
-        }
+        /*state.cards = match &state.game24 {
+            Some(game) => game.draw_cards_as_string(),
+            None => vec![vec!["".to_owned()]],
+        };*/
 
-        /*let _terminal_events =
-        TerminalEventCollector::new(
-            move |term_event|{
-                match term_event {
-                    Ok(event) =>
-                    thread::spawn(move || {
-                        read_input(app_arc, event)
-                    }),
-                    Err(e) =>
-                        (),//terminal_handler.signals().send(Signal::Close(Some(e))),
-                    };
-            }
-
-                ).unwrap();*/
+        Application { config, commands, state }
     }
 
     pub fn run(
@@ -141,56 +99,6 @@ impl<'a> Application {
         }*/
 
         Ok(())
-
-        /*thread::spawn(move || {
-            let self_clone = Arc::clone(&self_arc);
-            loop{
-
-                thread::sleep(time::Duration::from_millis(300));
-            }
-        });*/
-        //let (_, listener) = node::split::<()>();
-        //listener.for_each(move |event| match event.network() {
-
-        /*loop {
-            match self.receiver.receive() {
-                NodeEvent::Network(net_event) => match net_event {
-                    NetEvent::Connected(endpoint, _) => {
-                        self.log_in_chat(format!("connected! <{endpoint:?}"))
-                    }
-                    NetEvent::Message(endpoint, message) => match encoder::decode(&message) {
-                        Some(net_message) => self.process_network_message(endpoint, net_message),
-                        None => return Err("Unknown message received".into()),
-                    },
-                    NetEvent::Accepted(endpoint, _resource_id) => {
-                        self.log_in_chat(format!("accepted! <{endpoint:?}"))
-                    }
-                    NetEvent::Disconnected(endpoint) => {
-                        self.state.disconnected_user(endpoint);
-                        //If the endpoint was sending a stream make sure to close its window
-                        self.state.windows.remove(&endpoint);
-                        self.righ_the_bell();
-                    }
-                },
-                NodeEvent::Signal(signal) => match signal {
-                    Signal::Terminal(term_event) => {
-                        self.process_terminal_event(term_event);
-                    }
-                    Signal::Action(action) => {
-                        self.process_action(action);
-                    }
-                    Signal::Close(error) => {
-                        self.node.stop();
-                        return match error {
-                            Some(error) => Err(error),
-                            None => Ok(()),
-                        };
-                    }
-                },
-            }
-            renderer.render(&self.state, &self.config.theme)?;
-        }*/
-        //Renderer is destroyed here and the terminal is recovered
     }
 
     /*fn process_net_event(&mut self, net_event: NodeEvent<Signal>) -> Result<()>{
@@ -327,7 +235,12 @@ impl<'a> Application {
                     self.state.windows.remove(&endpoint);
                 }
             },
-            NetMessage::CardasciiNewTurn(_) => {}
+            NetMessage::CardasciiNewTurn(hand) => {
+
+                    
+
+
+            }
             NetMessage::CardasciiAnswer(content) => {
                 if let Some(user) = self.state.user_name(&endpoint) {
                     let message = ChatMessage::new(
@@ -374,12 +287,13 @@ impl<'a> Application {
         term_event: TermEvent,
         node: &NodeHandler<Signal>,
         encoder: &mut Encoder,
-        renderer: &mut Renderer<Stdout>
+        renderer: &mut Renderer<Stdout>,
     ) {
         match term_event {
             TermEvent::Mouse(_) => (),
             TermEvent::Resize(_, _) => {
-                renderer.render(&self.state, &self.config.theme);},
+                renderer.render(&self.state, &self.config.theme);
+            }
             TermEvent::Key(KeyEvent { code, modifiers }) => match code {
                 KeyCode::Esc => {
                     node.signals().send_with_priority(Signal::Close(None));

@@ -4,3 +4,4 @@
 termchat-24game.code-workspace
 ui/*
 Cargo.lock
+/task
