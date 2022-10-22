@@ -60,7 +60,8 @@ pub struct State {
     last_user_id: usize,
     pub stop_stream: bool,
     pub windows: HashMap<Endpoint, Window>,
-    pub(crate) game24: Option<Game24>
+    pub(crate) game24: Option<Game24>,
+    pub cards : Vec<Vec<String>>,
 }
 
 pub enum CursorMovement {
