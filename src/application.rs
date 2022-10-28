@@ -1,4 +1,6 @@
 use super::state::{State, CursorMovement, ChatMessage, MessageType, ScrollMovement};
+use crate::cardascii::common::Card;
+use crate::cardascii::terminal::{draw_card, draw_hand_from_array};
 use crate::state::Window;
 use crate::renderer::{Renderer};
 use crate::action::{Action, Processing};
@@ -13,6 +15,8 @@ use crate::config::{Config, NodeType};
 use crate::encoder::{self, Encoder};
 
 use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
+
+use std::convert::TryInto;
 
 use message_io::{
     events::{EventReceiver},
@@ -166,6 +170,18 @@ impl<'a> Application {
 
                     node.network().send(endpoint, encoder.encode(message));
                     self.state.connected_user(endpoint, &user);
+
+                    if let Some(game) = & self.state.game24 {
+                        let message = NetMessage::CardasciiNewTurn(
+                            game.get_gived_cards()
+                            .into_iter()
+                            .map(|card|  *card)
+                            .collect::<Vec<Card>>()
+                            .try_into()
+                            .unwrap_or_else(|v: Vec<Card>| panic!("Expected a Vec of length {} but it was {}", 4, v.len()))
+                        );
+                        node.network().send(endpoint, encoder.encode(message));
+                    }
                 }
             }
             // by tcp:
@@ -235,7 +251,11 @@ impl<'a> Application {
                     self.state.windows.remove(&endpoint);
                 }
             },
-            NetMessage::CardasciiNewTurn(hand) => {}
+            NetMessage::CardasciiNewTurn(hand) => {
+                if self.state.game24.is_none() {
+                    self.state.cards = draw_hand_from_array(& hand);
+                }
+            }
             NetMessage::CardasciiAnswer(content) => {
                 if let Some(user) = self.state.user_name(&endpoint) {
                     let message = ChatMessage::new(
@@ -470,8 +490,8 @@ pub fn read_ws<'a>(
     listener.for_each(move |event| {
         let app_guard = &mut _1_app_arc.lock().unwrap();
         let encoder_guard = &mut _2_encoder_arc.lock().unwrap();
-        let node_guard = &_3_node_arc.lock().unwrap();
-        let renderer_guard = &mut _4_renderer_arc.lock().unwrap();
+        let node_guard = & _3_node_arc.lock().unwrap();
+        let renderer_guard = & mut _4_renderer_arc.lock().unwrap();
 
         match event.network() {
             NetEvent::Connected(endpoint, _) => {

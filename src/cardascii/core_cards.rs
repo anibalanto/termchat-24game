@@ -2,8 +2,8 @@ use std::io::{stdin, Stdin};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use rcalc::{Interpreter, Lexer, Token};
-use crate::cardascii::terminal::VisualDeck;
-use super::common::{Card, CardType};
+use crate::cardascii::terminal::draw_hand;
+use super::{common::{Card, CardType}};
 
 /*const CARD_ID_JOCKER_1: u8 = 0;
 const CARD_ID_JOCKER_2: u8 = 1;
@@ -121,7 +121,6 @@ impl CardStack {
 pub struct Game24{
     //player:             u8,
     deck:               Deck,
-    visual_deck:        VisualDeck,
     hidden_cards:       CardStack,
     visible_cards:      CardStack,
     players_cards:      Vec<CardStack>,
@@ -150,7 +149,6 @@ impl Game24 {
 
         Game24 {
             deck,
-            visual_deck: VisualDeck::new(),
             hidden_cards,
             visible_cards:  CardStack::new(true),
             players_cards,
@@ -192,7 +190,7 @@ impl Game24 {
     }
 
     pub fn draw_cards_as_string(&self) -> Vec<Vec<String>> {
-        self.visual_deck.draw_hand(self.get_gived_cards())
+        draw_hand(self.get_gived_cards())
     }
 
     pub fn end_turn(&mut self, result: TurnResult) {
