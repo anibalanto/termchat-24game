@@ -37,7 +37,7 @@ use std::{
     sync::{Mutex, Arc},
 };
 use std::net::SocketAddrV4;
-use crate::cardascii::core_cards::{Game24, UnusedCardsError};
+use crate::cardascii::core_cards::{Game24, GameAnswerErr};
 
 pub enum Signal {
     Terminal(TermEvent),
@@ -279,7 +279,7 @@ impl<'a> Application {
                     let result_message = match game.make_answer(0, content.clone()) {
                         Ok(()) => format!("correct answer!! =_= > {}", content.clone()),
 
-                        Err(UnusedCardsError(msg)) => format!(
+                        Err(GameAnswerErr(msg)) => format!(
                             "isn't correct answer!! =_= > {} > problem: {}",
                             content.clone(),
                             msg

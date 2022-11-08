@@ -1,9 +1,11 @@
-use std::io::{stdin, Stdin};
+use std::fmt::format;
+
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use rcalc::{Interpreter, Lexer, Token};
 use crate::cardascii::terminal::draw_hand;
 use super::{common::{Card, CardType}};
+use bimap::BiMap;
 
 /*const CARD_ID_JOCKER_1: u8 = 0;
 const CARD_ID_JOCKER_2: u8 = 1;
@@ -11,8 +13,10 @@ const CARD_ID_JOCKER_2: u8 = 1;
 
 
 #[derive(Debug)]
-pub struct UnusedCardsError(pub String);
+pub struct GameAnswerErr(pub String);
 
+#[derive(Debug)]
+pub struct GameRegisterErr(pub String);
 
 struct Deck{
     cards: Vec<Card>
@@ -20,8 +24,6 @@ struct Deck{
 
 impl Deck {
     fn new() -> Self {
-
-        //static mut VISUAL_CARDS : HashMap<Card, Vec<&'static str>> = HashMap::<Card, Vec<&'static str>>::new();
 
         let mut me = Deck {
             cards : Vec::<Card>::new(),
@@ -119,7 +121,8 @@ impl CardStack {
 }
 
 pub struct Game24{
-    //player:             u8,
+    player_count:       usize,
+    players:            BiMap::<String, usize>,
     deck:               Deck,
     hidden_cards:       CardStack,
     visible_cards:      CardStack,
@@ -139,7 +142,7 @@ pub enum TurnResult {
 impl Game24 {
     pub(crate) fn new(/*player: u8, deck: &'a Deck*/) -> Self {
         let mut hidden_cards = CardStack::new(false);
-        let mut deck = Deck::new();
+        let deck = Deck::new();
         hidden_cards.add_cards(&deck);
         hidden_cards.shuffle();
         let mut players_cards = Vec::<CardStack>::new();
@@ -148,6 +151,8 @@ impl Game24 {
         players_cards.push(CardStack::new(false));
 
         Game24 {
+            player_count: 0,
+            players: BiMap::new(),
             deck,
             hidden_cards,
             visible_cards:  CardStack::new(true),
@@ -168,13 +173,7 @@ impl Game24 {
     }
 
     fn play(&mut self) -> TurnResult {
-        let mut stdin = stdin();
-        //let mut stdout = MouseTerminal::from(stdout().into_raw_mode().unwrap());
-
-        //stdout.flush().unwrap();
-
-        let mut result : TurnResult = TurnResult::Gaming;
-        result
+        TurnResult::Gaming
     }
     pub fn give_cards(&mut self) -> bool{
         !self.hidden_cards.is_empty() &&
@@ -207,49 +206,45 @@ impl Game24 {
     }
 
 
-    fn play_turn(&mut self, stdin: &mut Stdin) -> TurnResult {
-        let mut turn = TurnResult::Gaming;
-        /*while turn == GameResult::Gaming {
-            for c in stdin.events() {
-                let evt = c.unwrap();
-                match evt {
-                    Event::Key(Key()::Char('r')) => {
-                        match self.resolve_operation() {
-                            Some(op) =>
-                                turn = if op == 24
-                                { GameResult::Win } else
-                                { GameResult::Lose },
-                            None =>
-                                turn = GameResult::Tie
-                        };
-                        break;
-                    },
-                    _ => {}
-                }
-            }
-        }*/
-        turn
+    fn play_turn(&mut self) -> TurnResult {
+        TurnResult::Gaming
     }
 
-    pub fn make_answer(&mut self, user: usize, answer: String) -> Result< (), UnusedCardsError > {
-
-        let mut program = Interpreter::from(answer.as_str());
-
-        match program.interpret() {
-            Ok(result) => { //answer_analizer::analize(&answer) {
-                if result == 24.0 {
-                    self.validate_card_usage_answer(user, answer)
-                } else {
-                    Err(UnusedCardsError(
-                        format!("the result of your operation isn't 24 result is {result}")))
-                }
+    pub fn register_user(& mut self, user: & String) -> Result< (), GameRegisterErr > {
+        match self.players.get_by_left(user) {
+            None => {
+                self.player_count += 1;
+                self.players.insert(*user, self.player_count);
+                Result::Ok(())
             },
-            Err(e) =>
-                Err(UnusedCardsError(format!("the operation isn't correct\n{e}")))
+            Some(_) => Err(GameRegisterErr(format!("the user already already exists")))
         }
     }
 
-    pub fn validate_card_usage_answer(&mut self, user: usize, answer: String) -> Result< (), UnusedCardsError > {
+    pub fn make_answer(&mut self, user: & String, answer: String) -> Result< (), GameAnswerErr > {
+        match self.players.get_by_left(user) {
+            Some(user) =>  {
+                let mut program = Interpreter::from(answer.as_str());
+
+                match program.interpret() {
+                    Ok(result) => { 
+                        if result == 24.0 {
+                            self.validate_card_usage_answer(user, answer)
+                        } else {
+                            Err(GameAnswerErr(
+                                format!("the result of your operation isn't 24 result is {result}")))
+                        }
+                    },
+                    Err(e) =>
+                        Err(GameAnswerErr(format!("the operation isn't correct\n{e}")))
+                }
+            },
+            None => Err(GameAnswerErr(
+                format!("User not registered")))
+        }
+    }
+
+    pub fn validate_card_usage_answer(&mut self, user: & usize, answer: String) -> Result< (), GameAnswerErr > {
         let mut lexer = Lexer::from(answer.as_str());
 
         let mut cards_vec   = self.deck.get_cards_from_stack(& mut self.visible_cards);
@@ -259,9 +254,6 @@ impl Game24 {
                 break;
             }
             if let Token::NUMBER(n)  = token {
-
-                // FIXME es necesiario comparar dos vectores con los mismos elementos
-                // desordenados y no como hacemos ahora
                 let pos = cards_vec
                     .iter()
                     .position( |x| usize::from(x.value) == n );
@@ -269,33 +261,21 @@ impl Game24 {
                 if let Some(pos) = pos {
                     cards_vec.remove(pos);
                 } else {
-                    return Err(UnusedCardsError(
+                    return Err(GameAnswerErr(
                         format!("you are using numbers that don't exist in this cards {n}")))
                 }
             }
         }
         if cards_vec.is_empty() {
-            //game.end_turn(TurnResult::Winner(0));
-            Result::Ok(())
+            self.end_turn(TurnResult::Winner(*user));
+            Result::Ok(()) 
         } else {
-            Err(UnusedCardsError(
+            Err(GameAnswerErr(
                 format!("don't use this cards {cards_vec:?}")))
         }
+        
     }
 
-    fn resolve_operation(& self) -> Option<u16> {
-        match self.operation.parse::<u16>() {
-            Ok(op) => Some(op),
-            Err(_) => None
-        }
-    }
-
-}
-
-fn main() {
-
-    /*let mut game = Game24::new(0, &deck);
-    game.play();*/
 }
 
 fn load_cards(deck: & mut Deck) {
