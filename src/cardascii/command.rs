@@ -1,8 +1,7 @@
 
 use super::common::HandCardData;
-use super::terminal::VisualDeck;
 
-pub fn get_command(deck: & mut VisualDeck, hand: &HandCardData) -> Option<String> {
+pub fn get_command(hand: &HandCardData) -> Option<String> {
     // Set terminal to raw mode to allow reading stdin one key at a time
     /*let mut stdout = io::stdout().into_raw_mode().unwrap();
 

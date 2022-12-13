@@ -1,4 +1,6 @@
 use super::state::{State, CursorMovement, ChatMessage, MessageType, ScrollMovement};
+use crate::cardascii::common::Card;
+use crate::cardascii::terminal::{draw_card, draw_hand_from_array};
 use crate::state::Window;
 use crate::renderer::{Renderer};
 use crate::action::{Action, Processing};
@@ -13,6 +15,8 @@ use crate::config::{Config, NodeType};
 use crate::encoder::{self, Encoder};
 
 use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
+
+use std::convert::TryInto;
 
 use message_io::{
     events::{EventReceiver},
@@ -33,7 +37,7 @@ use std::{
     sync::{Mutex, Arc},
 };
 use std::net::SocketAddrV4;
-use crate::cardascii::core_cards::{Game24, UnusedCardsError};
+use crate::cardascii::core_cards::{Game24, Game24Err};
 
 pub enum Signal {
     Terminal(TermEvent),
@@ -166,6 +170,18 @@ impl<'a> Application {
 
                     node.network().send(endpoint, encoder.encode(message));
                     self.state.connected_user(endpoint, &user);
+
+                    if let Some(game) = & self.state.game24 {
+                        let message = NetMessage::CardasciiNewTurn(
+                            game.get_gived_cards()
+                            .into_iter()
+                            .map(|card|  *card)
+                            .collect::<Vec<Card>>()
+                            .try_into()
+                            .unwrap_or_else(|v: Vec<Card>| panic!("Expected a Vec of length {} but it was {}", 4, v.len()))
+                        );
+                        node.network().send(endpoint, encoder.encode(message));
+                    }
                 }
             }
             // by tcp:
@@ -236,13 +252,14 @@ impl<'a> Application {
                 }
             },
             NetMessage::CardasciiNewTurn(hand) => {
-
-                    
-
-
+                if self.state.game24.is_none() {
+                    self.state.cards = draw_hand_from_array(& hand);
+                }
             }
             NetMessage::CardasciiAnswer(content) => {
+                let mut opt_user : Option<String> = None;
                 if let Some(user) = self.state.user_name(&endpoint) {
+                    opt_user = Some( user.clone() );
                     let message = ChatMessage::new(
                         user.into(),
                         MessageType::Text(format!("24Game_answer! > {content}")),
@@ -251,33 +268,51 @@ impl<'a> Application {
                     self.righ_the_bell();
                 }
 
-                if self.state.game24.is_some() {
-                    //let Some(game) = &mut self.state.game24 {
-                    let message2 = ChatMessage::new(
-                        "Me".to_string(),
-                        MessageType::Text(format!("analizing > {content}")),
-                    );
-
-                    self.state.add_message(message2);
-
-                    let game = self.state.game24.as_mut().unwrap();
-                    let result_message = match game.make_answer(0, content.clone()) {
-                        Ok(()) => format!("correct answer!! =_= > {}", content.clone()),
-
-                        Err(UnusedCardsError(msg)) => format!(
-                            "isn't correct answer!! =_= > {} > problem: {}",
-                            content.clone(),
-                            msg
-                        ),
-                    };
-
-                    for endpoint in self.state.all_user_endpoints() {
-                        node.network().send(
-                            *endpoint,
-                            encoder.encode(NetMessage::UserMessage(result_message.clone())),
+                if let Some (t_user) = opt_user {
+                    if self.state.game24.is_some() {
+                        //let Some(game) = &mut self.state.game24 {
+                        let message2 = ChatMessage::new(
+                            "Me".to_string(),
+                            MessageType::Text(format!("analizing > {content}")),
                         );
+    
+                        self.state.add_message(message2);
+    
+                        let game = self.state.game24.as_mut().unwrap();
+                        let result_message = match game.make_answer( & t_user, content.clone()) {
+                            Ok( turn ) => format!("correct answer!! =_= > {}", content.clone()),
+    
+                            Err(Game24Err(msg)) => format!(
+                                "isn't correct answer!! =_= > {} > problem: {}",
+                                content.clone(),
+                                msg
+                            ),
+                        };
+    
+                        for endpoint in self.state.all_user_endpoints() {
+                            node.network().send(
+                                *endpoint,
+                                encoder.encode(NetMessage::UserMessage(result_message.clone())),
+                            );
+                        }
                     }
                 }
+                
+            },
+            NetMessage::CardasciiPass() => {
+                if let Some(user) = self.state.user_name(&endpoint).cloned() {
+                    if let Some(game) = self.state.game24.as_mut() {
+                        game.do_pass(&user);
+                        let message = ChatMessage::new(
+                            user.into(),
+                            MessageType::Text(format!("24Game_pass!")),
+                        );
+                        self.state.add_message(message);
+                        self.righ_the_bell();
+
+                    }
+                }
+
             }
         }
     }
@@ -475,8 +510,8 @@ pub fn read_ws<'a>(
     listener.for_each(move |event| {
         let app_guard = &mut _1_app_arc.lock().unwrap();
         let encoder_guard = &mut _2_encoder_arc.lock().unwrap();
-        let node_guard = &_3_node_arc.lock().unwrap();
-        let renderer_guard = &mut _4_renderer_arc.lock().unwrap();
+        let node_guard = & _3_node_arc.lock().unwrap();
+        let renderer_guard = & mut _4_renderer_arc.lock().unwrap();
 
         match event.network() {
             NetEvent::Connected(endpoint, _) => {

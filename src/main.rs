@@ -6,9 +6,7 @@ use clap::{App, Arg};
 use std::net::{SocketAddrV4};
 
 
-
 fn main() {
-
     let matches = App::new("app")
         .arg(
             Arg::with_name("discovery")
@@ -95,3 +93,4 @@ fn main() {
     }*/
 
 }
+

@@ -21,14 +21,14 @@ pub fn draw(
     chunk: Rect,
     theme: &Theme,
 ) {
-    let chunks = Layout::default()
+    let v_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(6)].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .split(chunk);
 
-    let upper_chunk = chunks[0];
-    draw_messages_panel(frame, state, chunks[0], theme);
-
+    let upper_chunk = v_chunks[0];
+    draw_messages_panel(frame, state, v_chunks[0], theme);
+    
     let upper_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(15), Constraint::Length(31)].as_ref())
@@ -36,11 +36,12 @@ pub fn draw(
     draw_messages_panel(frame, state, upper_chunks[0], theme);
     //draw_video_panel(frame, state, upper_chunks[1]);
     if let Some(game) = &state.game24 {
-        draw_card_panel(frame, upper_chunks[1], game.draw_cards_as_string());
-    } else {
-        draw_card_panel(frame, upper_chunks[1], vec![vec!["".to_owned()]]);
+        draw_card_panel(frame, upper_chunks[1], & game.draw_cards_as_string());
     }
-    draw_input_panel(frame, state, chunks[1], theme);
+    else {
+        draw_card_panel(frame, upper_chunks[1], & state.cards);
+    }
+    draw_input_panel(frame, state, v_chunks[1], theme);
 }
 
 fn draw_messages_panel(
@@ -199,11 +200,7 @@ fn draw_input_panel(
     frame.render_widget(fb, chunk);
 }*/
 
-fn draw_card_panel(
-    frame: &mut Frame<CrosstermBackend<impl Write>>,
-    chunk: Rect,
-    visual_cards: Vec<Vec<String>>,
-) {
+fn draw_card_panel(frame: &mut Frame<CrosstermBackend<impl Write>>, chunk: Rect, visual_cards: &Vec<Vec<String>>) {
     let rows = visual_cards.iter().map(|v_card| {
         let height = v_card
             .iter()
