@@ -17,5 +17,6 @@ pub enum NetMessage {
     UserData(String, Chunk),                   // file_name, chunk
     Stream(Option<(Vec<RGB8>, usize, usize)>), // Option of (stream_data width, height ) None means stream has ended
     CardasciiAnswer(String),
-    CardasciiNewTurn(HandCardData)
+    CardasciiNewTurn(HandCardData),
+    CardasciiPass()
 }
