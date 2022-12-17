@@ -35,7 +35,7 @@ rand = "0.8.0"
 rcalc = "0.1.2" #meval = "0.2"
 rustyline = "9.0.0"
 bimap = "0.6.2"
-
+indexmap = "1.9.2"
 lazy_static = "1.4.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]

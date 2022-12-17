@@ -1,9 +1,6 @@
-use std::fmt::format;
-
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use rcalc::{Interpreter, Lexer, Token};
-use crate::cardascii::terminal::draw_hand;
 use super::{common::{Card, CardType}};
 use bimap::BiMap;
 use std::collections::HashMap;
@@ -66,7 +63,7 @@ impl Deck {
 
 pub struct CardStack {
     is_face_up:bool,
-    card_ids: Vec<u8>,
+    pub card_ids: Vec<u8>,
 }
 
 impl CardStack {
@@ -127,19 +124,18 @@ pub enum TurnResult {
 
 pub struct Turn {
     num:            u8,
-    visible_cards:  CardStack,
-    result:         TurnResult
+    pub visible_cards:  CardStack,
+    pub result:         TurnResult
 }
 
 pub struct Game24{
     player_count:       usize,
-    players:            BiMap::<String, usize>,
-    players_gaming_turn:HashMap::<usize, bool>,
+    players:            BiMap<String, usize>,
+    players_gaming_turn:HashMap<usize, bool>,
     deck:               Deck,
     hidden_cards:       CardStack,
     players_cards:      Vec<CardStack>,
     accumulate_cards:   CardStack,
-    operation:          String,
     turn:               Turn
 }
 
@@ -162,7 +158,6 @@ impl Game24 {
             hidden_cards,
             players_cards,
             accumulate_cards: CardStack::new(false),
-            operation: "24".to_string(),
             turn: Turn {
                 num: 0,
                 visible_cards: CardStack::new(true),
@@ -171,7 +166,7 @@ impl Game24 {
         }
     }
 
-    fn reset(&mut self) {
+    pub fn do_reset(&mut self) {
         self.hidden_cards.add_all_from( &mut self.turn.visible_cards );
         for player_card in & mut self.players_cards.iter_mut() {
             self.hidden_cards.add_all_from( player_card );
@@ -184,7 +179,7 @@ impl Game24 {
         self.hidden_cards.shuffle();
     }
 
-    pub fn give_cards(&mut self) -> Result< & Turn , Game24Err>{
+    pub fn do_give_cards(&mut self) -> Result< & Turn , Game24Err>{
         if ! self.hidden_cards.is_empty() && self.turn.visible_cards.add_n_from(&mut self.hidden_cards, 4) {
             self.turn.num += 1;
             self.turn.result = TurnResult::Gaming;
@@ -197,12 +192,44 @@ impl Game24 {
         self.deck.get_cards_from_stack(& self.turn.visible_cards)
     }
 
-    pub fn get_gived_card(&self, i: usize) -> Option<&Card>{
-        self.deck.get_card_pos(i, &self.turn.visible_cards.card_ids)
+    pub fn do_user_registration(& mut self, user: & String) -> Result< (), Game24Err > {
+        match self.players.get_by_left(user) {
+            None => {
+                self.player_count += 1;
+                self.players.insert(user.clone(), self.player_count);
+                Ok(())
+            },
+            Some(_) => Err(Game24Err(format!("the user already exists")))
+        }
     }
 
-    pub fn draw_cards_as_string(&self) -> Vec<Vec<String>> {
-        draw_hand(self.get_gived_cards())
+    pub fn do_pass(&mut self, user: & String) -> Result< & Turn, Game24Err >{
+        match self.players.get_by_left(user).cloned() {
+            Some(user) =>  {
+                match self.players_gaming_turn.get_mut( &user ) {
+                    Some(gaming_turn) => {
+                        *gaming_turn = false;
+                        if ! self.players_gaming_turn.values().any( |&gaming| gaming ) {
+                            self.end_turn(TurnResult::Tie);
+                        }
+                        Ok( & self.turn )
+                    },
+                    None => Err(Game24Err(format!("User game state not registered")))
+                }
+            },
+            _ => Err(Game24Err(format!("User not registered")))
+        }
+    }
+
+    pub fn make_answer(&mut self, user: & String, answer: String) -> Result< & Turn, Game24Err > {
+        let result_24 = self.validate_24_result(user, & answer);
+        match result_24 {
+            Ok(()) => match self.validate_card_usage_answer(user, & answer) {
+                Ok(()) => Ok(& self.turn),
+                Err(e) => Err(e)
+            },
+            Err(e) => Err(e)
+        }
     }
 
     fn end_turn(&mut self, result: TurnResult) {
@@ -219,55 +246,15 @@ impl Game24 {
         self.turn.result = result;
     }
 
-    pub fn register_user(& mut self, user: & String) -> Result< (), Game24Err > {
-        match self.players.get_by_left(user) {
-            None => {
-                self.player_count += 1;
-                self.players.insert(user.clone(), self.player_count);
-                Result::Ok(())
-            },
-            Some(_) => Err(Game24Err(format!("the user already exists")))
-        }
-    }
-
-    pub fn do_pass(&mut self, user: & String) -> Result< & Turn, Game24Err >{
-        match self.players.get_by_left(user).cloned() {
-            Some(user) =>  {
-                match self.players_gaming_turn.get_mut( &user ) {
-                    Some(gaming_turn) => {
-                        *gaming_turn = false;
-                        if ! self.players_gaming_turn.values().any( |&gaming| gaming ) {
-                            self.end_turn(TurnResult::Tie);
-                        }
-                        Result::Ok( & self.turn )
-                    },
-                    None => Err(Game24Err(format!("User game state not registered")))
-                }
-            },
-            _ => Err(Game24Err(format!("User not registered")))
-        }
-    }
-
-    pub fn make_answer(&mut self, user: & String, answer: String) -> Result< & Turn, Game24Err > {
-        let result_24 = self.validate_24_result(user, & answer);
-        match result_24 {
-            Ok(()) => match self.validate_card_usage_answer(user, & answer) {
-                Ok(()) => Result::Ok(& self.turn),
-                Err(e) => Err(e)
-            },
-            Err(e) => Err(e)
-        }
-    }
-    
     fn validate_24_result(&mut self, user: & String, answer: & String) -> Result< (), Game24Err > {
         match self.players.get_by_left(user) {
-            Some(user) =>  {
+            Some(_) =>  {
                 let mut program = Interpreter::from(answer.as_str());
 
                 match program.interpret() {
                     Ok(result) => { 
                         if result == 24.0 {
-                            Result::Ok(())
+                            Ok(())
                         } else {
                             Err(Game24Err(format!("the result of your operation isn't 24 result is {result}")))
                         }
@@ -305,7 +292,7 @@ impl Game24 {
             match self.players.get_by_left(user).cloned() {
                 Some(user) =>  {
                     self.end_turn(TurnResult::Winner(user));
-                    Result::Ok(())
+                    Ok(())
                 },
                 None => Err(Game24Err(format!("User not registered")))
             }

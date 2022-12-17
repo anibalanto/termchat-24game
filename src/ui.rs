@@ -14,6 +14,7 @@ use tui::widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap};
 use tui::Frame;
 
 use std::io::Write;
+use crate::cardascii::terminal::draw_hand_from_vec_cards;
 
 pub fn draw(
     frame: &mut Frame<CrosstermBackend<impl Write>>,
@@ -36,7 +37,7 @@ pub fn draw(
     draw_messages_panel(frame, state, upper_chunks[0], theme);
     //draw_video_panel(frame, state, upper_chunks[1]);
     if let Some(game) = &state.game24 {
-        draw_card_panel(frame, upper_chunks[1], & game.draw_cards_as_string());
+        draw_card_panel(frame, upper_chunks[1], & draw_hand_from_vec_cards(& game.get_gived_cards()));
     }
     else {
         draw_card_panel(frame, upper_chunks[1], & state.cards);

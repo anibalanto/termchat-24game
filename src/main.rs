@@ -1,4 +1,4 @@
-use termchat::application::{Application, read_ws, run_app};
+use termchat::application::run_app;
 use termchat::config::Config;
 
 use clap::{App, Arg};

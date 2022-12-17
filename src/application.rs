@@ -1,6 +1,6 @@
 use super::state::{State, CursorMovement, ChatMessage, MessageType, ScrollMovement};
 use crate::cardascii::common::Card;
-use crate::cardascii::terminal::{draw_card, draw_hand_from_array};
+use crate::cardascii::terminal::{draw_hand_from_array, draw_hand_from_stack};
 use crate::state::Window;
 use crate::renderer::{Renderer};
 use crate::action::{Action, Processing};
@@ -18,26 +18,20 @@ use crossterm::event::{Event as TermEvent, KeyCode, KeyEvent, KeyModifiers};
 
 use std::convert::TryInto;
 
-use message_io::{
-    events::{EventReceiver},
-    node::NodeEvent,
-};
 use message_io::network::{NetEvent, Endpoint, Transport};
-use message_io::node::{self, NodeListener, NodeTask, NodeHandler};
+use message_io::node::{self, NodeEvent, NodeListener, NodeHandler};
 
 use std::{
-    thread::{self, JoinHandle},
-    io::Stdout,
-    collections::HashMap,
+    thread::{self},
+    io::Stdout
 };
-use std::sync::{mpsc, MutexGuard};
 
 use std::{
     io::{ErrorKind},
     sync::{Mutex, Arc},
 };
 use std::net::SocketAddrV4;
-use crate::cardascii::core_cards::{Game24, Game24Err};
+use crate::cardascii::game::{Game24, Game24Err};
 
 pub enum Signal {
     Terminal(TermEvent),
@@ -163,7 +157,7 @@ impl<'a> Application {
     ) {
         //self.log_in_chat(format!("processing {:?}", message));
         match message {
-            NetMessage::HelloServer(user, server_port) => {
+            NetMessage::HelloServer(user, _) => {
                 // let server_addr = (endpoint.addr().ip(), server_port);
                 if user != self.config.user_name {
                     let message = NetMessage::HelloUser(self.config.user_name.clone());
@@ -280,7 +274,15 @@ impl<'a> Application {
     
                         let game = self.state.game24.as_mut().unwrap();
                         let result_message = match game.make_answer( & t_user, content.clone()) {
-                            Ok( turn ) => format!("correct answer!! =_= > {}", content.clone()),
+                            Ok( _ ) => {
+                                match game.do_give_cards() {
+                                    Ok(turn) => {
+                                        self.state.cards = draw_hand_from_stack(& turn.visible_cards);
+                                    }
+                                    Err(e) => ()
+                                }
+                                format!("correct answer!! =_= > {}", content.clone())
+                            },
     
                             Err(Game24Err(msg)) => format!(
                                 "isn't correct answer!! =_= > {} > problem: {}",
@@ -407,7 +409,7 @@ impl<'a> Application {
 
     fn try_new_turn_game24(&mut self) {
         if let Some(game) = &mut self.state.game24 {
-            game.give_cards();
+            game.do_give_cards();
         }
     }
 
@@ -539,7 +541,7 @@ pub fn read_ws<'a>(
                     ()
                 }
             },
-            NetEvent::Accepted(endpoint, _resource_id) => {
+            NetEvent::Accepted(_, _resource_id) => {
                 //app_guard.log_in_chat(format!("accepted! <{endpoint:?}"));
             }
             NetEvent::Disconnected(endpoint) => {
@@ -566,11 +568,11 @@ pub fn run_app(config: Config) {
     let sender = sender.clone();*/
 
     let app_arc = Arc::clone(&_1_app_arc);
-    let encoder_arc = Arc::clone(&_2_encoder_arc);
+    //let encoder_arc = Arc::clone(&_2_encoder_arc);
     let node_arc = Arc::clone(&_3_node_arc);
     {
         let app_guard = &mut app_arc.lock().unwrap();
-        let encoder_guard = &mut encoder_arc.lock().unwrap();
+        //let encoder_guard = &mut encoder_arc.lock().unwrap();
         let node_guard = &node_arc.lock().unwrap();
 
         app_guard.try_new_turn_game24();
