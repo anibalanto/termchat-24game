@@ -1,5 +1,6 @@
 pub mod send_file;
 pub mod cardascii_answer;
+pub mod cardascii_pass;
 #[cfg(feature = "stream-video")]
 pub mod send_stream;
 

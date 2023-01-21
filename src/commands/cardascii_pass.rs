@@ -8,7 +8,7 @@ use crate::util::Result;
 
 pub struct CardasciiPassCommand;
 
-impl Command for CardasciiAnswerCommand {
+impl Command for CardasciiPassCommand {
     fn name(&self) -> &'static str {
         "24:pass"
     }

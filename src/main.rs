@@ -4,9 +4,10 @@ use termchat::config::Config;
 use clap::{App, Arg};
 
 use std::net::{SocketAddrV4};
-
+use std::env;
 
 fn main() {
+    env::set_var("RUST_BACKTRACE", "1");
     let matches = App::new("app")
         .arg(
             Arg::with_name("discovery")
