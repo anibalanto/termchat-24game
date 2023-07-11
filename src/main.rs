@@ -50,13 +50,6 @@ fn main() {
                 .help("Name used as user idenfication"),
         )
         .arg(
-            Arg::with_name("boot")
-                .long("boot")
-                .takes_value(false)
-                .short('b')
-                .help("Make a boot to play cardacii game"),
-        )
-        .arg(
             Arg::with_name("quiet-mode")
                 .long("quiet-mode")
                 .short('q')

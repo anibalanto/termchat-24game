@@ -32,7 +32,7 @@ use std::{
 };
 use std::net::SocketAddrV4;
 use std::sync::atomic::{AtomicBool, Ordering};
-use crate::cardascii::game::{Game24, Game24Err, Turn, TurnResult};
+use crate::cardascii::game::{Game24, Game24Err, TurnResult};
 
 pub enum Signal {
     Terminal(TermEvent),
@@ -265,7 +265,7 @@ impl<'a> Application {
     
                         let game = self.state.game24.as_mut().unwrap();
                         let result_message = match game.make_answer( & t_user, content.clone()) {
-                            Ok( turn ) => {
+                            Ok( _ ) => {
                                 match game.do_give_cards() {
                                     Ok(turn) => {
                                         self.state.cards = draw_hand_from_stack(& turn.visible_cards);
@@ -307,10 +307,14 @@ impl<'a> Application {
                         match game.do_pass(&user) {
                             Ok(turn) => {
                                 match turn.result {
-                                    TurnResult::Tie         =>  self.log_in_chat(format!("all players passed this turn")),
-                                    TurnResult::Gaming      =>  self.log_in_chat(format!("some player passed this turn")),
-                                    TurnResult::Winner(_) |
-                                    TurnResult::Abandoned   => ()
+                                    TurnResult::Tie         =>
+                                        self.log_in_chat(format!("all players passed this turn")),
+                                    TurnResult::Gaming      =>
+                                        self.log_in_chat(format!("some player passed this turn")),
+                                    TurnResult::Winner(win)   =>
+                                        self.log_in_chat(format!("have a winner!")),
+                                    TurnResult::Abandoned   =>
+                                        self.log_in_chat(format!("why!!!")),
                                 }
 
                             }
@@ -435,43 +439,6 @@ impl<'a> Application {
             print!("\x07");
         }
     }
-
-    fn test_server(&mut self, event: NodeEvent<Signal>) {
-        match event.network() {
-            NetEvent::Connected(_, _) => (), // Only generated at connect() calls.
-            NetEvent::Accepted(endpoint, _listener_id) => {
-                // Only connection oriented protocols will generate this event
-                self.log_in_chat(format!("Client ({}) connected", endpoint.addr()));
-            }
-            NetEvent::Message(endpoint, input_data) => {
-                self.log_in_chat(format!("Message({})", endpoint.addr()));
-            }
-            NetEvent::Disconnected(endpoint) => {
-                // Only connection oriented protocols will generate this event
-                self.log_in_chat(format!("Client ({}) disconnected", endpoint.addr()));
-            }
-        }
-    }
-
-    fn test_client(&mut self, event: NodeEvent<Signal>) {
-        match event.network() {
-            NetEvent::Connected(_, established) => {
-                if established {
-                    self.log_in_chat(format!("Connected to server at "));
-                    self.log_in_chat(format!("Client identified by local port"));
-                } else {
-                    self.log_in_chat(format!("Can not connect to server at"));
-                }
-            }
-            NetEvent::Accepted(_, _) => unreachable!(), // Only generated when a listener accepts
-            NetEvent::Message(_, input_data) => {
-                self.log_in_chat(format!("Message()"));
-            }
-            NetEvent::Disconnected(_) => {
-                self.log_in_chat(format!("Server is disconnected"));
-            }
-        }
-    }
 }
 
 use std::time::Duration;
@@ -480,7 +447,6 @@ use crossterm::{
     event::{read, poll},
 };
 use crate::commands::cardascii_pass::CardasciiPassCommand;
-use crate::message::NetMessage::CardasciiPass;
 
 pub fn read_input<'a>(
     _1_app_arc: Arc<Mutex<Application>>,

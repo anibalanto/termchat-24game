@@ -10,7 +10,7 @@ pub struct CardasciiPassCommand;
 
 impl Command for CardasciiPassCommand {
     fn name(&self) -> &'static str {
-        "24:pass"
+        "pass"
     }
 
     fn parse_params(&self, params: Vec<String>) -> Result<Box<dyn Action>> {
@@ -43,8 +43,7 @@ impl Action for CardasciiPass {
         for endpoint in state.all_user_endpoints() {
             network.send(*endpoint, message);
         }
-
-
+        
         Processing::Completed
     }
 }

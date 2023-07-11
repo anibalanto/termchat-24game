@@ -81,6 +81,7 @@ impl Config {
         }
         if let Some(port) = matches.value_of("table") {
             config.node_type = NodeType::Server{port: port.parse().unwrap() };
+            config.boot = true;
         }
         if let Some(server_addr) = matches.value_of("player") {
             config.node_type = NodeType::Client{server_addr: server_addr.parse::<SocketAddrV4>().unwrap()};
@@ -98,9 +99,6 @@ impl Config {
             else {
                 config.theme = Theme::light_theme();
             }
-        }
-        if matches.is_present("boot") {
-            config.boot = true;
         }
 
         config

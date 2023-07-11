@@ -10,7 +10,7 @@ pub struct CardasciiAnswerCommand;
 
 impl Command for CardasciiAnswerCommand {
     fn name(&self) -> &'static str {
-        "24:answer"
+        "answer"
     }
 
     fn parse_params(&self, params: Vec<String>) -> Result<Box<dyn Action>> {
